@@ -1,0 +1,63 @@
+# ────────────────────────────────────────────────────────────────
+# Lofty + Claude Cowork Starter Kit: Environment Variables
+# ────────────────────────────────────────────────────────────────
+# Copy this file to .env and fill in your values. The .env file
+# stays on this machine only and should be git-ignored. Each
+# computer that runs the client needs its own .env.
+#
+# At minimum, set LOFTY_API_KEY. Everything else is optional.
+# ────────────────────────────────────────────────────────────────
+
+# Required: Lofty CRM personal access token (JWT format).
+# Get from: app.lofty.com -> Settings -> API Keys -> Generate
+# It will be a long string starting with "eyJ".
+# Auth header format: "Authorization: token <key>"  (NOT "Bearer")
+LOFTY_API_KEY=your-lofty-jwt-here
+
+
+# ── Optional overrides (defaults work for production) ────────────
+# Uncomment and set only if you need to change them.
+
+# Lofty API base URL (almost never changes):
+# LOFTY_BASE_URL=https://api.lofty.com
+
+# Seconds between API calls. Lofty's limit is 10 req/min, so 6.5s is
+# the safe default. Lower it only if Lofty raises your limit.
+# LOFTY_RATE_LIMIT_DELAY=6.5
+
+
+# ── Optional: Cloudflare Worker integrations ─────────────────────
+# These are only needed if you've deployed your own Workers for the
+# leads index, short links, Jotform feedback, or showing-time SMS.
+# See claude-cowork-lofty-guide.md sections 15 and 16 for details.
+
+# Source for find_client lookups. "worker" reads from a live Worker
+# fed by Lofty webhooks. Anything else (or unset) reads from a local
+# file built by a refresh script. Start with the local file; switch
+# to "worker" once you've deployed the leads-index Worker.
+# LOFTY_LEADS_INDEX_SOURCE=file
+
+# Your leads-index Worker URL (yours will be different):
+# LEADS_INDEX_WORKER_URL=https://leads-index.<your-subdomain>.workers.dev
+
+# Bearer token for your leads-index Worker's /export endpoint.
+# Generate a random 32-char string; this value lives in BOTH this .env
+# AND the Worker's secret store.
+# LEADS_INDEX_EXPORT_API_KEY=your-bearer-token-here
+
+# Webhook secret in your leads-index Worker callback URL. Lofty webhook
+# list 2 posts to /webhook/<this_secret>; the Worker rejects anything
+# without it. Keep in sync with what the webhook subscription shows.
+# LOFTY_WEBHOOK_SECRET=your-webhook-secret-here
+
+# Your short-links Worker URL:
+# SHORTENER_BASE_URL=https://short-links.<your-subdomain>.workers.dev
+
+# Bearer token for your short-links Worker:
+# SHORTENER_API_KEY=your-shortener-bearer-token-here
+
+# Cloudflare API token, only needed if you'll deploy Workers via the
+# wrangler CLI (required for showing-sms; optional for the others).
+# Get from: dash.cloudflare.com/profile/api-tokens, "Edit Cloudflare
+# Workers" template.
+# CLOUDFLARE_API_TOKEN=your-cloudflare-api-token-here

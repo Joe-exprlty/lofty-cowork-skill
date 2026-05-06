@@ -1,0 +1,75 @@
+# Lofty CRM Knowledge Base
+
+This file loads automatically into every Claude Cowork session. Keep it lean. Detail goes in `docs/`.
+
+> Customize the placeholders below for your business. Everything in angle brackets is a placeholder.
+
+---
+
+## Owner
+
+<Your Name>, <Your Brokerage>, <Your City, State>.
+
+- Email: <your-email>
+- Phone: <your-phone>
+- Website: <your-website>
+- Timezone: <your-timezone, e.g. America/Los_Angeles>
+- Lofty User ID: <your-Lofty-user-id>
+- Team ID: <your-Lofty-team-id>
+- MLS Agent IDs: <e.g. RMLS: AGENT123, WVMLS: 5678>
+
+---
+
+## How to Connect to Lofty
+
+**Primary path: Python client.** `scripts/lofty_api.py`. Uses long-lived JWT, no OAuth, handles known quirks. Reads `LOFTY_API_KEY` from `.env`.
+
+```python
+from lofty_api import LoftyAPI
+api = LoftyAPI()
+```
+
+CLI: `python3 scripts/lofty_api.py test|lead|activities|notes|members|tags|webhooks|org`.
+
+**Auth header:** `Authorization: token <API_KEY>` with `Content-Type: application/json` on writes only. `Bearer` is OAuth-only and returns error 200058.
+
+---
+
+## Top Quirks (memorize these)
+
+1. **Auth:** `token` header, not `Bearer`.
+2. **`/v1.0/leads` silently ignores `sortField`, `keyword`, and `startTime`.** Build a leads index for name/visit lookups.
+3. **Activities MUST use v1.0.** v2.0 returns empty.
+4. **Notes:** POST `/v1.0/notes` with `{"leadId": <number>, "content": "..."}`. No title. `/v1.0/leads/<id>/notes` returns 404.
+5. **Rate limit:** 10 req/min. Client enforces 6.5s spacing.
+
+All times: ISO 8601 with offset (e.g. `2026-04-15T14:00:00-07:00`).
+
+Address format Lofty expects: `STREET, CITY, STATE ZIP` (e.g. `11513 SW BAMBI LN, Portland, OR 97223`).
+
+---
+
+## Safety Rules
+
+- CONFIRM with me before sending any email or SMS, or deleting anything.
+- Exclude me from lead searches: lastName contains "<your-last-name>".
+- Exclude stages: `DNC`, `Archived`, `Agents / Vendors`.
+- Never share API keys in chat. If exposed, rotate and update everywhere.
+- Draft texts sign off `- <my first name>` (casual).
+- Do NOT use em-dash characters; use commas, periods, or hyphens.
+
+---
+
+## Common Workflows
+
+- **Find a client.** `api.find_client(name, exclude_stages=[...])` (when you've built a leads index). Until then, `api.search_leads()` returns the most recent 25 leads.
+- **Log a note.** `api.create_note(lead_id, content)`.
+- **Get activity feed.** `api.get_lead_activities(lead_id)`.
+- **Schedule a showing** (when you've added the helper): Google Calendar event PLUS a Lofty showing-log note. Do NOT use `create_task(APPOINTMENT)`.
+
+---
+
+## Where to look for detail
+
+- `claude-cowork-lofty-guide.md` (in this kit's root): full setup, learning, and best-practices guide.
+- `lofty_api_starter.py`: the Python client itself; method comments document each quirk inline.
