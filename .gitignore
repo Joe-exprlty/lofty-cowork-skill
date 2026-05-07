@@ -31,3 +31,6 @@ venv/
 
 # Claude Cowork session artifacts
 data/leads_index.json
+
+# Build artifacts (the .skill file is a release asset, not a source file)
+*.skill
