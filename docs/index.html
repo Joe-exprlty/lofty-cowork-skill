@@ -358,31 +358,6 @@
     .check-item label { cursor: pointer; flex: 1; }
     .check-item input:checked + label { color: var(--text-muted); text-decoration: line-through; }
 
-    /* ── OS picker tabs ──────────────────────────────────────── */
-    .os-tabs { display: inline-flex; margin-bottom: 1.5rem; }
-    .os-tab {
-      padding: 10px 20px;
-      border: 1px solid var(--border);
-      background: var(--white);
-      cursor: pointer;
-      font-family: 'Nunito Sans', sans-serif;
-      font-size: 0.9rem;
-      font-weight: 600;
-      color: var(--text-body);
-      transition: all 0.15s;
-    }
-    .os-tab:first-child { border-radius: 4px 0 0 4px; }
-    .os-tab:last-child { border-radius: 0 4px 4px 0; }
-    .os-tab:not(:first-child) { border-left: 0; }
-    .os-tab.active {
-      background: var(--near-black);
-      color: var(--gold);
-      border-color: var(--near-black);
-    }
-    .os-tab:hover:not(.active) { background: var(--card-honey); }
-    .os-block { display: none; }
-    .os-block.active { display: block; }
-
     /* ── Step rows ──────────────────────────────────────────── */
     .step {
       background: var(--white);
@@ -573,7 +548,7 @@
       <span class="eyebrow">A free tool from Saling Homes</span>
       <h1>Connect Claude to your Lofty CRM.</h1>
       <p class="lede">
-        A Claude Cowork skill that turns Claude into a working operator for your Lofty CRM. Find leads, log notes, pull activity feeds, and run common workflows in plain English. Fifteen minutes from install to your first connected query.
+        A Claude Cowork skill that turns Claude into a working operator for your Lofty CRM. Find leads, log notes, pull buyer activity, and run common workflows in plain English. Claude does most of the setup work. You answer a few short questions, and you're connected in about fifteen minutes.
       </p>
       <hr class="gold-rule">
       <div class="actions">
@@ -585,6 +560,10 @@
       <p class="meta">
         Free and open source.
         <a href="https://github.com/Joe-exprlty/lofty-cowork-skill">View on GitHub</a>
+      </p>
+      <p class="meta" style="margin-top: 1.25rem; font-size: 0.85rem; line-height: 1.55; max-width: 44em; color: rgba(255,255,255,0.55);">
+        <strong style="color: rgba(255,255,255,0.8);">Note on data handling.</strong>
+        When you ask Claude to look up, update, or summarize leads, the lead content Claude reads (names, contact info, notes, activity) is processed through Anthropic's models the same way any Claude chat is processed. Your Lofty API key stays on your computer and is never sent to Anthropic. Before using this tool with real client data, confirm it fits your brokerage's data handling rules, your MLS rules, and what your clients reasonably expect. This skill is provided as is; verify behavior in your own Lofty account before relying on it for client-facing work. Not affiliated with or endorsed by Lofty Inc. or Anthropic.
       </p>
     </div>
   </section>
@@ -638,33 +617,33 @@
         <span class="eyebrow">Step zero</span>
         <h2>What you'll need</h2>
       </div>
-      <p>Tick each box as you confirm. The skill cannot work around a missing prerequisite.</p>
+      <p>Have these ready before you start. Click any link to set it up. Most of you already have items 1 and 4. Claude handles the rest of the work after that.</p>
 
       <div class="sh-card" style="margin-top: 1.5rem;">
         <div class="check-item">
           <input type="checkbox" id="req-os">
-          <label for="req-os"><strong>A computer</strong> running Mac (macOS 14+), Windows (10 or 11), or Linux. All three are supported.</label>
-        </div>
-        <div class="check-item">
-          <input type="checkbox" id="req-python">
-          <label for="req-python"><strong>Python 3.11 or newer.</strong> Check by running <span class="inline-code">python3 --version</span> on Mac/Linux or <span class="inline-code">python --version</span> on Windows.</label>
+          <label for="req-os"><strong>A computer</strong> running Mac (macOS 14 or newer), Windows (10 or 11), or Linux. Anything from the last 4 or 5 years works.</label>
         </div>
         <div class="check-item">
           <input type="checkbox" id="req-claude">
-          <label for="req-claude"><strong>Claude Desktop with Cowork mode.</strong> <a href="https://claude.ai/download" style="color: var(--near-black); text-decoration: underline;">Download Claude Desktop</a>.</label>
+          <label for="req-claude"><strong>Claude Desktop, with a Pro or Max plan for Cowork.</strong> <a href="https://claude.ai/download" target="_blank" rel="noopener" style="color: var(--near-black); text-decoration: underline;">Download Claude Desktop (free)</a> and sign in. Cowork mode is part of the Pro and Max plans. <a href="https://claude.ai/upgrade" target="_blank" rel="noopener" style="color: var(--near-black); text-decoration: underline;">See plans</a>.</label>
         </div>
         <div class="check-item">
           <input type="checkbox" id="req-lofty">
-          <label for="req-lofty"><strong>A Lofty account with API access.</strong> Verify by going to Settings, then API Keys, and confirming you can see a Generate button.</label>
+          <label for="req-lofty"><strong>A Lofty account with API access enabled.</strong> Log into <a href="https://crm.lofty.com" target="_blank" rel="noopener" style="color: var(--near-black); text-decoration: underline;">Lofty</a>, click your profile picture top right, click Personal Settings, then Integrations. Scroll all the way down. If you see an "API Keys" section, you're set. If not, message Lofty support and ask them to enable API access for your account.</label>
+        </div>
+        <div class="check-item">
+          <input type="checkbox" id="req-python">
+          <label for="req-python"><strong>Python (don't worry if you don't have it).</strong> Claude will check during setup and walk you through installing it from <a href="https://www.python.org/downloads/" target="_blank" rel="noopener" style="color: var(--near-black); text-decoration: underline;">python.org</a> if it's missing. No command line knowledge needed.</label>
         </div>
         <div class="check-item">
           <input type="checkbox" id="req-editor">
-          <label for="req-editor"><strong>A code editor.</strong> VS Code or Cursor work great. On Windows, do not use plain Notepad (it can break <span class="inline-code">.env</span> files).</label>
+          <label for="req-editor"><strong>A simple text editor (optional, only if you want to peek at files).</strong> Mac and Linux already have one. On Windows, install <a href="https://code.visualstudio.com/download" target="_blank" rel="noopener" style="color: var(--near-black); text-decoration: underline;">VS Code (free)</a> or <a href="https://www.cursor.com/" target="_blank" rel="noopener" style="color: var(--near-black); text-decoration: underline;">Cursor</a>. Don't use plain Notepad on Windows. For setup, Claude opens files for you when needed.</label>
         </div>
-        <div class="check-item">
-          <input type="checkbox" id="req-skill">
-          <label for="req-skill"><strong>The .skill file.</strong> <a href="https://github.com/Joe-exprlty/lofty-cowork-skill/releases/latest/download/lofty-cowork-helper.skill" style="color: var(--near-black); text-decoration: underline;">Download here</a>.</label>
-        </div>
+      </div>
+
+      <div class="note" style="margin-top: 1.25rem;">
+        <strong>What about the .skill file?</strong> You'll download it in Step 1 of Setup below. One click, no install yet. Keep reading.
       </div>
     </div>
   </section>
@@ -678,13 +657,7 @@
         <span class="eyebrow">Setup</span>
         <h2>Step by step</h2>
       </div>
-      <p>Pick your operating system. The commands below will adjust automatically.</p>
-
-      <div class="os-tabs">
-        <button class="os-tab active" data-os="mac">Mac</button>
-        <button class="os-tab" data-os="windows">Windows</button>
-        <button class="os-tab" data-os="linux">Linux</button>
-      </div>
+      <p>Six short steps. Claude runs in <strong>Easy Mode</strong> by default and handles everything technical for you. If you'd rather move fast and skip the explanations, tell Claude "I'm technical" or "skip ahead" and it'll switch to Power User Mode. Works the same on Mac, Windows, and Linux. Claude detects your operating system and adjusts.</p>
 
       <div class="step">
         <div class="step-num">1</div>
@@ -699,7 +672,10 @@
         <div class="step-num">2</div>
         <div class="step-body">
           <h3>Install the skill in Claude Desktop</h3>
-          <p>Open Claude Desktop. Find the Skills or Plugins panel in settings. Drag your downloaded <span class="inline-code">.skill</span> file into it, or use "Install from file."</p>
+          <p><strong>The easy way:</strong> double-click the <span class="inline-code">lofty-cowork-helper.skill</span> file you just downloaded. Claude Desktop should pop open with a dialog that says "Add lofty-cowork-helper to your library?" Click <strong>Add to library</strong> and you're done.</p>
+          <div class="note">
+            <strong>If double-click doesn't open Claude:</strong> open Claude Desktop. In the left sidebar, click <strong>Cowork</strong>, then click the <strong>Customize</strong> button. You'll see a Skills section there. Drag the <span class="inline-code">.skill</span> file into it (or use the upload option if your version has one). This fallback sometimes matters on Linux or right after a fresh Claude install, before the file association registers.
+          </div>
         </div>
       </div>
 
@@ -719,30 +695,18 @@
       <div class="step">
         <div class="step-num">4</div>
         <div class="step-body">
-          <h3>Pick a workspace folder</h3>
-          <p>In your terminal, create the folder where Claude will install Lofty files:</p>
-
-          <div class="os-block active" data-os="mac">
-            <div class="cmd-block">
-              <button class="copy-btn" data-copy="mkdir -p ~/Code/lofty-tools">Copy</button>
-              mkdir -p ~/Code/lofty-tools
-            </div>
+          <h3>Let Claude create your project folder</h3>
+          <p>Claude creates a folder called <span class="inline-code">lofty-tools</span> inside your home <span class="inline-code">Code</span> folder. No command needed from you.</p>
+          <p>The only thing you do: in Claude Desktop, point Cowork at that folder when Claude asks you to. If Cowork is already open, Claude will tell you exactly where to click.</p>
+          <div class="note">
+            <strong>What's a "Cowork folder"?</strong> It's just the folder Claude is allowed to read and write files in for this conversation. Think of it as Claude's desk for this project.
           </div>
-          <div class="os-block" data-os="windows">
-            <div class="cmd-block">
-              <button class="copy-btn" data-copy='New-Item -ItemType Directory -Force -Path "$HOME\Code\lofty-tools"'>Copy</button>
-              New-Item -ItemType Directory -Force -Path "$HOME\Code\lofty-tools"
-            </div>
-            <p style="font-size: 0.9rem; color: var(--text-muted); margin: 0.5rem 0 0 0;">Use PowerShell or Windows Terminal, not the older Command Prompt.</p>
+          <div class="note" style="margin-top: 0.75rem;">
+            <strong>Where your files end up (good to know for later):</strong><br>
+            On Mac and Linux: <span class="inline-code">~/Code/lofty-tools/</span> (which expands to <span class="inline-code">/Users/yourname/Code/lofty-tools/</span> on Mac).<br>
+            On Windows: <span class="inline-code">C:\Users\yourname\Code\lofty-tools\</span>.<br>
+            Keep this path in mind. When we add showing reminders, post-showing texts, or form-to-CRM automations later (Phase 2), all of that builds inside this same folder. Your Lofty key, your customizations, and any new tools Claude adds will live here.
           </div>
-          <div class="os-block" data-os="linux">
-            <div class="cmd-block">
-              <button class="copy-btn" data-copy="mkdir -p ~/Code/lofty-tools">Copy</button>
-              mkdir -p ~/Code/lofty-tools
-            </div>
-          </div>
-
-          <p style="margin-top: 0.75rem;">In Claude Desktop, point Cowork at that folder.</p>
         </div>
       </div>
 
@@ -755,9 +719,9 @@
             <button class="copy-btn" data-copy="Set up Lofty for the first time.">Copy</button>
             Set up Lofty for the first time.
           </div>
-          <p style="margin-top: 0.75rem;">Claude walks you through getting your Lofty API key, creating the project structure, customizing your context file, and pasting your API key into <span class="inline-code">.env</span>. About 10 minutes.</p>
+          <p style="margin-top: 0.75rem;">Claude takes it from there. It will ask you a few short questions one at a time (your name, brokerage, phone, email, timezone), walk you through getting your Lofty API key, save it for you, and run a connection test. About 10 minutes total.</p>
           <div class="note">
-            <strong>Heads up:</strong> Claude will ask you to log into Lofty and generate a personal API key. Treat that key like a password. Never paste it into chat.
+            <strong>Heads up about your Lofty key:</strong> Treat it like a password. Don't paste it into chat. Claude saves it to a small settings file on your own computer (in the <span class="inline-code">lofty-tools</span> folder from Step 4). It is <strong>not</strong> uploaded anywhere, and it is <strong>not</strong> stored in the GitHub repo. The GitHub repo only holds the skill code that's the same for everyone. Your key stays local to your machine, period.
           </div>
         </div>
       </div>
@@ -765,15 +729,16 @@
       <div class="step">
         <div class="step-num">6</div>
         <div class="step-body">
-          <h3>Verify it works</h3>
-          <p>Try these prompts. If both return data, you are connected:</p>
+          <h3>Try it with a real lead</h3>
+          <p>Once setup finishes, Claude offers a guided demo using your actual data. Just tell Claude the name of one of your leads. Claude will pull them up, show you what they've been doing on your site, and walk you through your first real action.</p>
+          <p style="margin-top: 0.75rem;">If you want to test on your own, try these prompts:</p>
           <div class="cmd-block">
             <button class="copy-btn" data-copy="Find my most recent Lofty leads">Copy</button>
             Find my most recent Lofty leads
           </div>
           <div class="cmd-block">
-            <button class="copy-btn" data-copy="Show me the activity for that lead">Copy</button>
-            Show me the activity for that lead
+            <button class="copy-btn" data-copy="Show me Jane Smith's recent activity">Copy</button>
+            Show me Jane Smith's recent activity
           </div>
         </div>
       </div>
@@ -933,9 +898,9 @@
           <div class="h-title">Comprehensive guide</div>
           <div class="h-desc">All 14 quirks, best practices, extending the skill.</div>
         </a>
-        <a href="https://github.com/Joe-exprlty/lofty-cowork-skill/releases/latest/download/lofty-cowork-helper.skill" class="help-card">
-          <div class="h-title">Direct download</div>
-          <div class="h-desc">Latest .skill file from GitHub releases.</div>
+        <a href="https://github.com/Joe-exprlty/lofty-cowork-skill/blob/main/Lofty-Claude-Setup-Guide.pdf" class="help-card">
+          <div class="h-title">Printable setup guide</div>
+          <div class="h-desc">PDF version of the setup steps you can keep nearby.</div>
         </a>
       </div>
     </div>
@@ -1012,24 +977,6 @@
       tryLoad('SalingHomes_logo_wEXP_logo.png');
       tryLoad('logo.svg');
       tryLoad('logo.png');
-    })();
-
-    // OS picker
-    const tabs = document.querySelectorAll('.os-tab');
-    const blocks = document.querySelectorAll('.os-block');
-    function setOS(os) {
-      tabs.forEach(t => t.classList.toggle('active', t.dataset.os === os));
-      blocks.forEach(b => b.classList.toggle('active', b.dataset.os === os));
-    }
-    tabs.forEach(tab => tab.addEventListener('click', () => setOS(tab.dataset.os)));
-
-    // Auto-detect OS on first load
-    (function detectOS() {
-      const ua = navigator.userAgent;
-      let os = 'mac';
-      if (/Win/i.test(ua)) os = 'windows';
-      else if (/Linux/i.test(ua) && !/Android/i.test(ua)) os = 'linux';
-      setOS(os);
     })();
 
     // Copy buttons

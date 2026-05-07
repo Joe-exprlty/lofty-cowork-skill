@@ -95,7 +95,9 @@ Tell the user:
 
 > "Now let's save your Lofty code so Claude can use it. I'll open the file where it goes. When it opens, you'll see a line that says `LOFTY_API_KEY=your-lofty-jwt-here`. Replace `your-lofty-jwt-here` with the long code you copied from Lofty. Save the file (Cmd+S on Mac, Ctrl+S on Windows). Tell me when you've saved it."
 
-Use the bash `open` (Mac) or `start` (Windows) command to open `~/Code/lofty-tools/.env` in the user's default text editor. After they confirm save, validate the key was set (read the file, check for non-placeholder value).
+Use the bash `open` (Mac) or `start` (Windows) command to open `~/Code/lofty-tools/.env` in the user's default text editor. Wait for the user to confirm they saved. **Do NOT read the `.env` file back to validate the key.** Reading it would pull the user's API key into Claude's context unnecessarily. Validation happens in step 8 by running the connection test, which exercises the key locally and only reports success or failure to Claude (never the key itself).
+
+If the user reports they cannot find or open the file, you may use `cat ~/Code/lofty-tools/.env | grep -c "your-lofty-jwt-here"` to count occurrences of the placeholder string only. A count of `0` means they replaced the placeholder; a count of `1` means they did not. This check returns only a number, never the key value.
 
 ### 7. Ask for personal info, one question at a time
 

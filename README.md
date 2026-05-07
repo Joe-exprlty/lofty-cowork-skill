@@ -46,6 +46,14 @@ The skill is read-only by design. It installs starter code into the user's works
 
 ---
 
+## Note on data handling
+
+When the skill is in use and the user asks Claude to look up, update, or summarize leads, the lead content Claude reads (names, contact info, notes, activity) is processed through Anthropic's models the same way any Claude conversation is processed. The user's Lofty API key stays on their computer and is never sent to Anthropic. The skill explicitly avoids reading the `.env` file back to Claude after setup; the connection test exercises the key locally and only reports success or failure.
+
+Before recommending this tool to other agents, make sure they understand the data-flow tradeoff and that it fits their brokerage's data handling rules, their MLS rules, and what their clients reasonably expect. This skill is provided as is; behavior should be verified in the user's own Lofty account before relying on it for client-facing work. Not affiliated with or endorsed by Lofty Inc. or Anthropic.
+
+---
+
 ## How distribution works
 
 1. **You package** the `lofty-cowork-helper/` folder into a `.skill` file using Anthropic's packaging script. See `PACKAGING.md`.
