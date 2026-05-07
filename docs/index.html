@@ -133,8 +133,8 @@
       gap: 12px;
     }
     .brand-mark {
-      width: 40px;
-      height: 40px;
+      width: 48px;
+      height: 48px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -142,10 +142,17 @@
       color: var(--gold);
       font-family: 'Playfair Display', Georgia, serif;
       font-weight: 700;
-      font-size: 18px;
+      font-size: 20px;
       border: 1px solid var(--gold);
       border-radius: 4px;
       overflow: hidden;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    /* When the actual logo image is loaded, strip the placeholder chrome
+       so the gold mark sits clean against the dark nav. */
+    .brand-mark.has-logo {
+      background: transparent;
+      border-color: transparent;
     }
     .brand-mark img {
       width: 100%;
@@ -978,13 +985,18 @@
       const mark = document.getElementById('brand-mark');
       const tryLoad = (src) => {
         const img = new Image();
-        img.onload = () => { mark.innerHTML = ''; img.alt = 'Saling Homes'; mark.appendChild(img); };
+        img.onload = () => {
+          mark.innerHTML = '';
+          img.alt = 'Saling Homes';
+          mark.appendChild(img);
+          mark.classList.add('has-logo');
+        };
         img.onerror = () => {};
         img.src = src;
       };
-      // Try local files first, then the CDN
-      tryLoad('logo.png');
+      // Prefer SVG, then PNG. First successful load wins.
       tryLoad('logo.svg');
+      tryLoad('logo.png');
     })();
 
     // OS picker
