@@ -146,14 +146,24 @@
       border: 1px solid var(--gold);
       border-radius: 4px;
       overflow: hidden;
-      transition: border-color 0.15s, background 0.15s;
+      transition: width 0.15s, height 0.15s, border-color 0.15s, background 0.15s;
     }
-    /* When the actual logo image is loaded, strip the placeholder chrome
-       so the gold mark sits clean against the dark nav. */
+    /* When the full landscape lockup loads, expand the box and drop chrome.
+       The lockup includes "SALING HOMES" + "at eXp Realty" already, so the
+       sibling text wordmark is hidden. */
     .brand-mark.has-logo {
+      width: auto;
+      height: 56px;
       background: transparent;
       border-color: transparent;
+      border-radius: 0;
     }
+    .brand-mark.has-logo img {
+      width: auto;
+      height: 100%;
+      object-fit: contain;
+    }
+    .brand-mark.has-logo + .brand-text { display: none; }
     .brand-mark img {
       width: 100%;
       height: 100%;
@@ -979,22 +989,27 @@
        Behavior: OS detection, tab switching, copy buttons, logo swap
        ═══════════════════════════════════════════════════════════ -->
   <script>
-    // Logo: if a real logo file exists at logo.png or logo.svg, swap it in.
-    // Otherwise the SH placeholder stays.
+    // Logo: try filenames in priority order. First successful load wins.
+    // SalingHomes_logo_wEXP_logo.png is the full landscape lockup
+    // (includes eXp Realty affiliation per brand guide).
     (function loadLogo() {
       const mark = document.getElementById('brand-mark');
+      let loaded = false;
       const tryLoad = (src) => {
         const img = new Image();
         img.onload = () => {
+          if (loaded) return;
+          loaded = true;
           mark.innerHTML = '';
-          img.alt = 'Saling Homes';
+          img.alt = 'Saling Homes at eXp Realty';
           mark.appendChild(img);
           mark.classList.add('has-logo');
         };
         img.onerror = () => {};
         img.src = src;
       };
-      // Prefer SVG, then PNG. First successful load wins.
+      // Priority: full landscape lockup, then square SH mark, then generic logo.
+      tryLoad('SalingHomes_logo_wEXP_logo.png');
       tryLoad('logo.svg');
       tryLoad('logo.png');
     })();
