@@ -1,0 +1,1033 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Connect Claude to Lofty - Saling Homes</title>
+  <meta name="description" content="A free Claude Cowork skill from Saling Homes at eXp Realty that connects Claude to the Lofty CRM. Listening, educating, advocating.">
+  <meta property="og:title" content="Connect Claude to Lofty - Saling Homes">
+  <meta property="og:description" content="A free Claude skill from Saling Homes that connects Claude to the Lofty CRM in 15 minutes.">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="https://joe-exprlty.github.io/sellingpdxhomes-images/og-saling-homes.webp">
+
+  <!-- Favicon (replace with branded favicon when ready) -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%231E1B18'/%3E%3Ctext x='16' y='22' font-family='Georgia, serif' font-size='18' font-weight='700' fill='%23F0C040' text-anchor='middle'%3ESH%3C/text%3E%3C/svg%3E">
+
+  <!-- Brand fonts: Playfair Display for headings, Nunito Sans for body -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Nunito+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    /* ── Saling Homes Brand Tokens (v3.0 Design System) ─────── */
+    :root {
+      --gold:         #F0C040;
+      --near-black:   #1E1B18;
+      --white:        #FFFFFF;
+      --text-body:    #444444;
+      --text-muted:   #767676;
+      --border:       #D9D0C3;
+      --card-honey:   #ECE4D0;
+      --card-honey-border: #D4CCB8;
+      --card-sage:    #E0E6DC;
+      --card-sage-border:  #C8CEBF;
+      --card-sky:     #E0E6EC;
+      --card-sky-border:   #C4CAD4;
+      --footer-nav:   #E7E2D6;
+    }
+
+    /* ── Reset and base ─────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: 'Nunito Sans', Arial, -apple-system, sans-serif;
+      font-weight: 400;
+      font-size: 1.18rem;
+      line-height: 1.6;
+      color: var(--text-body);
+      background: var(--white);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Typography ─────────────────────────────────────────── */
+    h1, h2, h3, h4 {
+      font-family: 'Playfair Display', Georgia, 'Times New Roman', serif;
+      font-weight: 700;
+      color: var(--near-black);
+      margin-top: 0;
+      line-height: 1.25;
+    }
+    h1 { font-size: clamp(2.4rem, 5vw, 3.6rem); }
+    h2 { font-size: 2.4rem; margin-bottom: 1rem; }
+    h3 { font-size: 1.4rem; margin-bottom: 0.5rem; }
+    h4 { font-size: 1.2rem; margin-bottom: 0.5rem; }
+    p { margin: 0 0 1rem 0; }
+    a { color: var(--near-black); text-decoration: none; }
+
+    /* ── Section label (eyebrow) ────────────────────────────── */
+    .eyebrow {
+      font-family: 'Nunito Sans', sans-serif;
+      font-weight: 600;
+      font-size: 0.88rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--gold);
+      display: block;
+      margin-bottom: 0.5rem;
+    }
+    .eyebrow-light { color: var(--near-black); }
+
+    /* ── Layout ─────────────────────────────────────────────── */
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 1.5rem;
+    }
+
+    /* ── Section header bar (signature SH treatment) ────────── */
+    .sh-section-header {
+      background: var(--near-black);
+      border-left: 4px solid var(--gold);
+      padding: 20px 32px 16px 32px;
+      margin: 0 0 2rem 0;
+      border-radius: 0 8px 8px 0;
+    }
+    .sh-section-header .eyebrow {
+      color: var(--gold);
+      margin-bottom: 0.25rem;
+    }
+    .sh-section-header h2 {
+      color: var(--white);
+      margin: 0;
+      font-size: 2rem;
+    }
+
+    /* ── Gold rule divider ──────────────────────────────────── */
+    .gold-rule {
+      width: 60px;
+      height: 3px;
+      background: var(--gold);
+      border: 0;
+      margin: 1rem 0 1.5rem 0;
+    }
+
+    /* ── Sticky nav ─────────────────────────────────────────── */
+    nav.topnav {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: var(--near-black);
+      border-bottom: 2px solid var(--gold);
+    }
+    nav.topnav .container {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-top: 12px;
+      padding-bottom: 12px;
+    }
+    .brand-lockup {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .brand-mark {
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--near-black);
+      color: var(--gold);
+      font-family: 'Playfair Display', Georgia, serif;
+      font-weight: 700;
+      font-size: 18px;
+      border: 1px solid var(--gold);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .brand-mark img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+    .brand-text {
+      color: var(--white);
+      font-family: 'Playfair Display', Georgia, serif;
+      font-weight: 700;
+      font-size: 1.1rem;
+      line-height: 1.2;
+    }
+    .brand-text .small {
+      display: block;
+      font-family: 'Nunito Sans', sans-serif;
+      font-weight: 400;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: rgba(255,255,255,0.7);
+    }
+
+    /* ── Buttons ────────────────────────────────────────────── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 14px 24px;
+      border-radius: 4px;
+      font-family: 'Nunito Sans', sans-serif;
+      font-weight: 700;
+      font-size: 0.95rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.15s, background 0.15s;
+      border: 0;
+      text-decoration: none;
+    }
+    .btn-primary {
+      background: var(--gold);
+      color: var(--near-black);
+    }
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 16px rgba(240,192,64,0.35);
+    }
+    .btn-ghost-dark {
+      background: transparent;
+      color: var(--white);
+      border: 1px solid rgba(255,255,255,0.45);
+    }
+    .btn-ghost-dark:hover {
+      border-color: rgba(255,255,255,0.9);
+    }
+    .btn-ghost-light {
+      background: transparent;
+      color: var(--near-black);
+      border: 1px solid var(--border);
+    }
+    .btn-ghost-light:hover { background: var(--card-honey); }
+    .btn-sm { padding: 10px 16px; font-size: 0.85rem; }
+
+    /* ── Hero (dark panel) ─────────────────────────────────── */
+    .hero {
+      background:
+        radial-gradient(ellipse at 70% 20%, rgba(240,192,64,0.12), transparent 60%),
+        linear-gradient(160deg, #1a1a1a, #1E1B18 50%, #2a2318);
+      padding: 6rem 0 5rem 0;
+      color: var(--white);
+    }
+    .hero h1 {
+      color: var(--white);
+      margin-bottom: 1rem;
+    }
+    .hero .promise {
+      color: var(--gold);
+      font-family: 'Playfair Display', serif;
+      font-style: italic;
+      font-size: 1.25rem;
+      margin: 0 0 1.5rem 0;
+    }
+    .hero p.lede {
+      color: rgba(255,255,255,0.92);
+      font-size: 1.18rem;
+      max-width: 36em;
+      margin-bottom: 2rem;
+    }
+    .hero .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 1.25rem;
+    }
+    .hero .meta {
+      color: rgba(255,255,255,0.65);
+      font-size: 0.9rem;
+    }
+    .hero .meta a { color: var(--gold); text-decoration: underline; }
+
+    /* ── Sections ───────────────────────────────────────────── */
+    section { padding: 4rem 0; }
+    section.tight { padding: 3rem 0; }
+
+    /* ── Cards (3-tone rotation) ───────────────────────────── */
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
+      gap: 1rem;
+      margin-top: 1.5rem;
+    }
+    .sh-card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.5rem;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+      transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+    }
+    .sh-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.08);
+      border-color: var(--gold);
+    }
+    .sh-card--honey { background: var(--card-honey); border-color: var(--card-honey-border); }
+    .sh-card--sage  { background: var(--card-sage);  border-color: var(--card-sage-border);  }
+    .sh-card--sky   { background: var(--card-sky);   border-color: var(--card-sky-border);   }
+
+    /* ── Inline code ─────────────────────────────────────────── */
+    .inline-code {
+      font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+      background: var(--card-honey);
+      color: var(--near-black);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+      border: 1px solid var(--card-honey-border);
+    }
+
+    /* ── Code / command blocks ───────────────────────────────── */
+    .cmd-block {
+      position: relative;
+      background: var(--near-black);
+      color: rgba(255,255,255,0.92);
+      padding: 14px 80px 14px 16px;
+      border-radius: 6px;
+      border-left: 3px solid var(--gold);
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-size: 0.95rem;
+      line-height: 1.5;
+      overflow-x: auto;
+      margin: 0.75rem 0;
+    }
+    .copy-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: var(--gold);
+      color: var(--near-black);
+      border: 0;
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-family: 'Nunito Sans', sans-serif;
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .copy-btn:hover { opacity: 0.85; }
+    .copy-btn.copied { background: #10B981; color: var(--white); }
+
+    /* ── Checklist ───────────────────────────────────────────── */
+    .check-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .check-item:last-child { border-bottom: 0; }
+    .check-item input[type="checkbox"] {
+      width: 20px;
+      height: 20px;
+      accent-color: var(--gold);
+      cursor: pointer;
+      margin-top: 2px;
+      flex-shrink: 0;
+    }
+    .check-item label { cursor: pointer; flex: 1; }
+    .check-item input:checked + label { color: var(--text-muted); text-decoration: line-through; }
+
+    /* ── OS picker tabs ──────────────────────────────────────── */
+    .os-tabs { display: inline-flex; margin-bottom: 1.5rem; }
+    .os-tab {
+      padding: 10px 20px;
+      border: 1px solid var(--border);
+      background: var(--white);
+      cursor: pointer;
+      font-family: 'Nunito Sans', sans-serif;
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text-body);
+      transition: all 0.15s;
+    }
+    .os-tab:first-child { border-radius: 4px 0 0 4px; }
+    .os-tab:last-child { border-radius: 0 4px 4px 0; }
+    .os-tab:not(:first-child) { border-left: 0; }
+    .os-tab.active {
+      background: var(--near-black);
+      color: var(--gold);
+      border-color: var(--near-black);
+    }
+    .os-tab:hover:not(.active) { background: var(--card-honey); }
+    .os-block { display: none; }
+    .os-block.active { display: block; }
+
+    /* ── Step rows ──────────────────────────────────────────── */
+    .step {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1rem;
+      display: flex;
+      gap: 1.25rem;
+      align-items: flex-start;
+    }
+    .step-num {
+      width: 44px;
+      height: 44px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--near-black);
+      color: var(--gold);
+      font-family: 'Playfair Display', serif;
+      font-weight: 700;
+      font-size: 1.4rem;
+      border-radius: 50%;
+      border: 2px solid var(--gold);
+    }
+    .step-body { flex: 1; min-width: 0; }
+    .step-body h3 { color: var(--near-black); margin-top: 0; margin-bottom: 0.5rem; }
+    .step-body p:last-child { margin-bottom: 0; }
+
+    /* ── Inline note callout ────────────────────────────────── */
+    .note {
+      background: var(--card-honey);
+      border-left: 4px solid var(--gold);
+      padding: 12px 16px;
+      border-radius: 4px;
+      margin: 1rem 0 0 0;
+      font-size: 0.95rem;
+      color: var(--near-black);
+    }
+
+    /* ── Footer ─────────────────────────────────────────────── */
+    footer {
+      background: var(--near-black);
+      color: rgba(255,255,255,0.85);
+      padding: 4rem 0 2rem 0;
+    }
+    footer a { color: var(--gold); }
+    footer h4 { color: var(--white); margin-bottom: 0.5rem; }
+    footer .footer-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+      margin-bottom: 2rem;
+    }
+    @media (max-width: 700px) { footer .footer-grid { grid-template-columns: 1fr; } }
+    .eho-bar {
+      background: var(--near-black);
+      border-top: 1px solid rgba(255,255,255,0.15);
+      padding: 1.5rem 0;
+      font-size: 0.85rem;
+      color: rgba(255,255,255,0.85);
+    }
+    .eho-bar p { margin: 0 0 0.5rem 0; }
+    .eho-bar p:last-child { margin: 0; color: rgba(255,255,255,0.65); }
+
+    /* ── Quirk / safety lists ────────────────────────────────── */
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
+      gap: 2rem;
+    }
+    .info-list { list-style: none; padding: 0; margin: 0; }
+    .info-list li {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 0.75rem;
+      font-size: 0.95rem;
+    }
+    .info-list li strong { color: var(--near-black); display: block; margin-bottom: 0.25rem; }
+    .info-list li .detail { color: var(--text-body); }
+
+    /* ── Help cards ─────────────────────────────────────────── */
+    .help-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
+      gap: 1rem;
+      margin-top: 1.5rem;
+    }
+    .help-card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem;
+      text-decoration: none;
+      transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+      display: block;
+    }
+    .help-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(0,0,0,0.06);
+      border-color: var(--gold);
+    }
+    .help-card .h-title {
+      font-family: 'Playfair Display', serif;
+      font-weight: 700;
+      color: var(--near-black);
+      font-size: 1.05rem;
+      margin-bottom: 0.25rem;
+    }
+    .help-card .h-desc { color: var(--text-body); font-size: 0.9rem; }
+
+    /* ── Mini sample-prompt cards ───────────────────────────── */
+    .ask-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
+      gap: 1rem;
+      margin-top: 1.5rem;
+    }
+    .ask-card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem;
+    }
+    .ask-card .ask-cmd {
+      background: var(--near-black);
+      color: var(--gold);
+      border-left: 3px solid var(--gold);
+      border-radius: 4px;
+      padding: 10px 60px 10px 12px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+      position: relative;
+      margin-bottom: 0.5rem;
+    }
+    .ask-card .copy-btn {
+      top: 6px; right: 6px;
+      padding: 4px 10px;
+      font-size: 0.7rem;
+    }
+    .ask-card .ask-detail {
+      color: var(--text-body);
+      font-size: 0.9rem;
+      margin: 0;
+    }
+
+    /* ── Responsive tweaks ──────────────────────────────────── */
+    @media (max-width: 700px) {
+      h1 { font-size: 2.4rem; }
+      h2 { font-size: 1.8rem; }
+      .hero { padding: 4rem 0 3rem 0; }
+      .step { flex-direction: row; padding: 1.25rem; }
+      .step-num { width: 36px; height: 36px; font-size: 1.1rem; }
+      .brand-text .small { display: none; }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       Top nav (near-black with gold accent line)
+       ═══════════════════════════════════════════════════════════ -->
+  <nav class="topnav">
+    <div class="container">
+      <a href="#" class="brand-lockup" style="text-decoration:none;">
+        <div class="brand-mark" id="brand-mark">SH</div>
+        <div class="brand-text">
+          Saling Homes
+          <span class="small">at eXp Realty</span>
+        </div>
+      </a>
+      <a href="https://github.com/Joe-exprlty/lofty-cowork-skill/releases/latest/download/lofty-cowork-helper.skill"
+         class="btn btn-primary btn-sm">
+        Download .skill
+      </a>
+    </div>
+  </nav>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       Hero (dark panel with gold accents)
+       ═══════════════════════════════════════════════════════════ -->
+  <section class="hero">
+    <div class="container">
+      <span class="eyebrow">A free tool from Saling Homes</span>
+      <h1>Connect Claude to your Lofty CRM.</h1>
+      <p class="lede">
+        A Claude Cowork skill that turns Claude into a working operator for your Lofty CRM. Find leads, log notes, pull activity feeds, and run common workflows in plain English. Fifteen minutes from install to your first connected query.
+      </p>
+      <hr class="gold-rule">
+      <div class="actions">
+        <a href="https://github.com/Joe-exprlty/lofty-cowork-skill/releases/latest/download/lofty-cowork-helper.skill" class="btn btn-primary">
+          Download lofty-cowork-helper.skill
+        </a>
+        <a href="#prerequisites" class="btn btn-ghost-dark">Start setup</a>
+      </div>
+      <p class="meta">
+        Free and open source.
+        <a href="https://github.com/Joe-exprlty/lofty-cowork-skill">View on GitHub</a>
+      </p>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       What you can do (3-tone card rotation)
+       ═══════════════════════════════════════════════════════════ -->
+  <section>
+    <div class="container">
+      <div class="sh-section-header">
+        <span class="eyebrow">Capabilities</span>
+        <h2>What you can do once connected</h2>
+      </div>
+      <p>Talk to Claude in plain English. The skill handles the API calls, the auth quirks, and the safety checks for you.</p>
+
+      <div class="card-grid">
+        <div class="sh-card sh-card--honey">
+          <h4>Find leads</h4>
+          <p>Pull any lead by name with their full record, contact info, and pipeline stage.</p>
+        </div>
+        <div class="sh-card sh-card--sage">
+          <h4>Log notes</h4>
+          <p>Claude drafts the note, asks you to confirm, then posts to the right lead.</p>
+        </div>
+        <div class="sh-card sh-card--sky">
+          <h4>See buyer activity</h4>
+          <p>Browse history, search history, favorites, info requests. All in one view.</p>
+        </div>
+        <div class="sh-card sh-card--honey">
+          <h4>Schedule showings</h4>
+          <p>Calendar invite, prefilled buyer feedback, automated 2-hour reminder text.</p>
+        </div>
+        <div class="sh-card sh-card--sage">
+          <h4>Built-in safety</h4>
+          <p>Always confirms before sending email, sending text, or deleting anything.</p>
+        </div>
+        <div class="sh-card sh-card--sky">
+          <h4>Cross-platform</h4>
+          <p>Works on Mac, Windows, and Linux. Setup steps adjust automatically.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       Prerequisites (interactive checklist)
+       ═══════════════════════════════════════════════════════════ -->
+  <section id="prerequisites" style="background: var(--white); border-top: 1px solid var(--border);">
+    <div class="container">
+      <div class="sh-section-header">
+        <span class="eyebrow">Step zero</span>
+        <h2>What you'll need</h2>
+      </div>
+      <p>Tick each box as you confirm. The skill cannot work around a missing prerequisite.</p>
+
+      <div class="sh-card" style="margin-top: 1.5rem;">
+        <div class="check-item">
+          <input type="checkbox" id="req-os">
+          <label for="req-os"><strong>A computer</strong> running Mac (macOS 14+), Windows (10 or 11), or Linux. All three are supported.</label>
+        </div>
+        <div class="check-item">
+          <input type="checkbox" id="req-python">
+          <label for="req-python"><strong>Python 3.11 or newer.</strong> Check by running <span class="inline-code">python3 --version</span> on Mac/Linux or <span class="inline-code">python --version</span> on Windows.</label>
+        </div>
+        <div class="check-item">
+          <input type="checkbox" id="req-claude">
+          <label for="req-claude"><strong>Claude Desktop with Cowork mode.</strong> <a href="https://claude.ai/download" style="color: var(--near-black); text-decoration: underline;">Download Claude Desktop</a>.</label>
+        </div>
+        <div class="check-item">
+          <input type="checkbox" id="req-lofty">
+          <label for="req-lofty"><strong>A Lofty account with API access.</strong> Verify by going to Settings, then API Keys, and confirming you can see a Generate button.</label>
+        </div>
+        <div class="check-item">
+          <input type="checkbox" id="req-editor">
+          <label for="req-editor"><strong>A code editor.</strong> VS Code or Cursor work great. On Windows, do not use plain Notepad (it can break <span class="inline-code">.env</span> files).</label>
+        </div>
+        <div class="check-item">
+          <input type="checkbox" id="req-skill">
+          <label for="req-skill"><strong>The .skill file.</strong> <a href="https://github.com/Joe-exprlty/lofty-cowork-skill/releases/latest/download/lofty-cowork-helper.skill" style="color: var(--near-black); text-decoration: underline;">Download here</a>.</label>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       Setup (OS picker + numbered steps)
+       ═══════════════════════════════════════════════════════════ -->
+  <section style="background: var(--card-honey); border-top: 1px solid var(--card-honey-border);">
+    <div class="container">
+      <div class="sh-section-header">
+        <span class="eyebrow">Setup</span>
+        <h2>Step by step</h2>
+      </div>
+      <p>Pick your operating system. The commands below will adjust automatically.</p>
+
+      <div class="os-tabs">
+        <button class="os-tab active" data-os="mac">Mac</button>
+        <button class="os-tab" data-os="windows">Windows</button>
+        <button class="os-tab" data-os="linux">Linux</button>
+      </div>
+
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <h3>Download the skill file</h3>
+          <p>Save it somewhere you can find. About 42 KB.</p>
+          <a href="https://github.com/Joe-exprlty/lofty-cowork-skill/releases/latest/download/lofty-cowork-helper.skill" class="btn btn-primary btn-sm">Download lofty-cowork-helper.skill</a>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <h3>Install the skill in Claude Desktop</h3>
+          <p>Open Claude Desktop. Find the Skills or Plugins panel in settings. Drag your downloaded <span class="inline-code">.skill</span> file into it, or use "Install from file."</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <h3>Confirm it installed</h3>
+          <p>Open a new Cowork conversation and ask:</p>
+          <div class="cmd-block">
+            <button class="copy-btn" data-copy="Do you have a Lofty skill installed?">Copy</button>
+            Do you have a Lofty skill installed?
+          </div>
+          <p style="margin: 0.75rem 0 0 0;">Claude should mention <span class="inline-code">lofty-cowork-helper</span>.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <h3>Pick a workspace folder</h3>
+          <p>In your terminal, create the folder where Claude will install Lofty files:</p>
+
+          <div class="os-block active" data-os="mac">
+            <div class="cmd-block">
+              <button class="copy-btn" data-copy="mkdir -p ~/Code/lofty-tools">Copy</button>
+              mkdir -p ~/Code/lofty-tools
+            </div>
+          </div>
+          <div class="os-block" data-os="windows">
+            <div class="cmd-block">
+              <button class="copy-btn" data-copy='New-Item -ItemType Directory -Force -Path "$HOME\Code\lofty-tools"'>Copy</button>
+              New-Item -ItemType Directory -Force -Path "$HOME\Code\lofty-tools"
+            </div>
+            <p style="font-size: 0.9rem; color: var(--text-muted); margin: 0.5rem 0 0 0;">Use PowerShell or Windows Terminal, not the older Command Prompt.</p>
+          </div>
+          <div class="os-block" data-os="linux">
+            <div class="cmd-block">
+              <button class="copy-btn" data-copy="mkdir -p ~/Code/lofty-tools">Copy</button>
+              mkdir -p ~/Code/lofty-tools
+            </div>
+          </div>
+
+          <p style="margin-top: 0.75rem;">In Claude Desktop, point Cowork at that folder.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">5</div>
+        <div class="step-body">
+          <h3>Ask Claude to run setup</h3>
+          <p>In your Cowork session, say:</p>
+          <div class="cmd-block">
+            <button class="copy-btn" data-copy="Set up Lofty for the first time.">Copy</button>
+            Set up Lofty for the first time.
+          </div>
+          <p style="margin-top: 0.75rem;">Claude walks you through getting your Lofty API key, creating the project structure, customizing your context file, and pasting your API key into <span class="inline-code">.env</span>. About 10 minutes.</p>
+          <div class="note">
+            <strong>Heads up:</strong> Claude will ask you to log into Lofty and generate a personal API key. Treat that key like a password. Never paste it into chat.
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">6</div>
+        <div class="step-body">
+          <h3>Verify it works</h3>
+          <p>Try these prompts. If both return data, you are connected:</p>
+          <div class="cmd-block">
+            <button class="copy-btn" data-copy="Find my most recent Lofty leads">Copy</button>
+            Find my most recent Lofty leads
+          </div>
+          <div class="cmd-block">
+            <button class="copy-btn" data-copy="Show me the activity for that lead">Copy</button>
+            Show me the activity for that lead
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       What you can ask
+       ═══════════════════════════════════════════════════════════ -->
+  <section>
+    <div class="container">
+      <div class="sh-section-header">
+        <span class="eyebrow">Sample prompts</span>
+        <h2>What you can ask Claude</h2>
+      </div>
+      <p>Click any prompt to copy it. The skill activates automatically when you mention Lofty.</p>
+
+      <div class="ask-grid">
+        <div class="ask-card">
+          <div class="ask-cmd">
+            <button class="copy-btn" data-copy="Find Jane Smith in Lofty">Copy</button>
+            Find Jane Smith in Lofty
+          </div>
+          <p class="ask-detail">Returns the matching lead with their contact info.</p>
+        </div>
+        <div class="ask-card">
+          <div class="ask-cmd">
+            <button class="copy-btn" data-copy="Show me Jane's recent activity">Copy</button>
+            Show me Jane's recent activity
+          </div>
+          <p class="ask-detail">Last 20 browse, search, and favorite events.</p>
+        </div>
+        <div class="ask-card">
+          <div class="ask-cmd">
+            <button class="copy-btn" data-copy="Log a note on Jane's lead saying we discussed pricing today">Copy</button>
+            Log a note on Jane's lead saying we discussed pricing today
+          </div>
+          <p class="ask-detail">Drafts the note, asks you to confirm, then posts.</p>
+        </div>
+        <div class="ask-card">
+          <div class="ask-cmd">
+            <button class="copy-btn" data-copy="Pull my recent Lofty leads">Copy</button>
+            Pull my recent Lofty leads
+          </div>
+          <p class="ask-detail">Returns your 25 most recently created leads.</p>
+        </div>
+        <div class="ask-card">
+          <div class="ask-cmd">
+            <button class="copy-btn" data-copy="What does Lofty error 200058 mean?">Copy</button>
+            What does Lofty error 200058 mean?
+          </div>
+          <p class="ask-detail">Quirk lookup. Same approach for any error code.</p>
+        </div>
+        <div class="ask-card">
+          <div class="ask-cmd">
+            <button class="copy-btn" data-copy="How do I extend this for showings?">Copy</button>
+            How do I extend this for showings?
+          </div>
+          <p class="ask-detail">Walks you through adding the showing scheduler.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       Quirks and safety habits
+       ═══════════════════════════════════════════════════════════ -->
+  <section style="background: var(--white); border-top: 1px solid var(--border);">
+    <div class="container">
+      <div class="info-grid">
+
+        <div>
+          <div class="sh-section-header">
+            <span class="eyebrow">Reference</span>
+            <h2>Top 5 Lofty quirks</h2>
+          </div>
+          <p>The skill handles all of these for you. Knowing them helps when an error appears.</p>
+          <ol class="info-list">
+            <li>
+              <strong>Auth header is <span class="inline-code">token</span>, not <span class="inline-code">Bearer</span>.</strong>
+              <span class="detail">Mixing them up returns error 200058.</span>
+            </li>
+            <li>
+              <strong><span class="inline-code">/v1.0/leads</span> ignores keyword and sort.</strong>
+              <span class="detail">The skill uses a leads index workaround.</span>
+            </li>
+            <li>
+              <strong>Activities must use v1.0.</strong>
+              <span class="detail">The v2.0 endpoint returns empty results.</span>
+            </li>
+            <li>
+              <strong>Notes go to <span class="inline-code">POST /v1.0/notes</span> with leadId in body.</strong>
+              <span class="detail">The intuitive path returns 404.</span>
+            </li>
+            <li>
+              <strong>Rate limit is 10 requests per minute.</strong>
+              <span class="detail">The starter client enforces 6.5 second spacing.</span>
+            </li>
+          </ol>
+        </div>
+
+        <div>
+          <div class="sh-section-header">
+            <span class="eyebrow">Safety</span>
+            <h2>Habits we recommend</h2>
+          </div>
+          <p>Built into how the skill operates. Knowing them helps you understand what Claude is doing.</p>
+          <ul class="info-list">
+            <li>
+              <strong>Confirm before email or text.</strong>
+              <span class="detail">Always. Claude drafts and asks before sending.</span>
+            </li>
+            <li>
+              <strong>Confirm before deleting.</strong>
+              <span class="detail">The Lofty UI does not have an undo.</span>
+            </li>
+            <li>
+              <strong>Never paste your API key into chat.</strong>
+              <span class="detail">Treat it like a password.</span>
+            </li>
+            <li>
+              <strong>Verify the lead ID before logging notes.</strong>
+              <span class="detail">A name match could be the wrong person.</span>
+            </li>
+            <li>
+              <strong>Times use ISO 8601 with offset.</strong>
+              <span class="detail">Pacific is -07:00 in DST, -08:00 outside.</span>
+            </li>
+          </ul>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       Help / where to go
+       ═══════════════════════════════════════════════════════════ -->
+  <section style="background: var(--card-sage); border-top: 1px solid var(--card-sage-border);">
+    <div class="container">
+      <div class="sh-section-header">
+        <span class="eyebrow">Resources</span>
+        <h2>Get help</h2>
+      </div>
+      <p>If something is not working, ask Claude first. Type your error into Cowork and Claude walks you through the troubleshooting decision tree.</p>
+
+      <div class="help-grid">
+        <a href="https://github.com/Joe-exprlty/lofty-cowork-skill" class="help-card">
+          <div class="h-title">Source on GitHub</div>
+          <div class="h-desc">Repo, issues, releases. Star it if it is useful.</div>
+        </a>
+        <a href="https://github.com/Joe-exprlty/lofty-cowork-skill/blob/main/INSTALL.md" class="help-card">
+          <div class="h-title">Install guide</div>
+          <div class="h-desc">The text version of this page in the repo.</div>
+        </a>
+        <a href="https://github.com/Joe-exprlty/lofty-cowork-skill/blob/main/lofty-cowork-helper/references/full-guide.md" class="help-card">
+          <div class="h-title">Comprehensive guide</div>
+          <div class="h-desc">All 14 quirks, best practices, extending the skill.</div>
+        </a>
+        <a href="https://github.com/Joe-exprlty/lofty-cowork-skill/releases/latest/download/lofty-cowork-helper.skill" class="help-card">
+          <div class="h-title">Direct download</div>
+          <div class="h-desc">Latest .skill file from GitHub releases.</div>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       Footer (Joe contact + EHO statement)
+       ═══════════════════════════════════════════════════════════ -->
+  <footer>
+    <div class="container">
+      <div class="footer-grid">
+        <div>
+          <h4 style="font-family: 'Playfair Display', serif;">Saling Homes at eXp Realty</h4>
+          <hr class="gold-rule">
+          <p style="color: rgba(255,255,255,0.85);">
+            Joe Saling, Principal Broker, Oregon.<br>
+            Portland metro and surrounding areas.
+          </p>
+          <p style="color: rgba(255,255,255,0.92); margin-top: 1rem;">
+            <strong style="color: var(--gold); font-family: 'Nunito Sans', sans-serif;">Text me at <a href="sms:+15039107364">503-910-7364</a></strong><br>
+            <a href="mailto:joe@sellingpdxhomes.com">joe@sellingpdxhomes.com</a><br>
+            <a href="https://www.sellingpdxhomes.com">sellingpdxhomes.com</a>
+          </p>
+        </div>
+        <div>
+          <h4 style="font-family: 'Playfair Display', serif;">About this project</h4>
+          <hr class="gold-rule">
+          <p style="color: rgba(255,255,255,0.85);">
+            Built by Joe Saling after months of trial and error connecting Lofty to Claude. Open source under the MIT License.
+          </p>
+          <p style="color: rgba(255,255,255,0.65); font-size: 0.9rem; margin-top: 1rem;">
+            Provided as is. Verify behavior in your own Lofty account before relying on it for client-facing work. Not affiliated with or endorsed by Lofty Inc. or Anthropic.
+          </p>
+        </div>
+      </div>
+    </div>
+    <div class="eho-bar">
+      <div class="container">
+        <p>
+          <strong>Equal Housing Opportunity.</strong>
+          Saling Homes at eXp Realty is committed to the principles of the Fair Housing Act. We do not discriminate on the basis of race, color, religion, sex, handicap, familial status, or national origin.
+        </p>
+        <p>
+          Licensed in the State of Oregon. Information deemed reliable but not guaranteed. Verify all data independently before making real estate decisions.
+        </p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       Behavior: OS detection, tab switching, copy buttons, logo swap
+       ═══════════════════════════════════════════════════════════ -->
+  <script>
+    // Logo: if a real logo file exists at logo.png or logo.svg, swap it in.
+    // Otherwise the SH placeholder stays.
+    (function loadLogo() {
+      const mark = document.getElementById('brand-mark');
+      const tryLoad = (src) => {
+        const img = new Image();
+        img.onload = () => { mark.innerHTML = ''; img.alt = 'Saling Homes'; mark.appendChild(img); };
+        img.onerror = () => {};
+        img.src = src;
+      };
+      // Try local files first, then the CDN
+      tryLoad('logo.png');
+      tryLoad('logo.svg');
+    })();
+
+    // OS picker
+    const tabs = document.querySelectorAll('.os-tab');
+    const blocks = document.querySelectorAll('.os-block');
+    function setOS(os) {
+      tabs.forEach(t => t.classList.toggle('active', t.dataset.os === os));
+      blocks.forEach(b => b.classList.toggle('active', b.dataset.os === os));
+    }
+    tabs.forEach(tab => tab.addEventListener('click', () => setOS(tab.dataset.os)));
+
+    // Auto-detect OS on first load
+    (function detectOS() {
+      const ua = navigator.userAgent;
+      let os = 'mac';
+      if (/Win/i.test(ua)) os = 'windows';
+      else if (/Linux/i.test(ua) && !/Android/i.test(ua)) os = 'linux';
+      setOS(os);
+    })();
+
+    // Copy buttons
+    document.querySelectorAll('.copy-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const text = btn.dataset.copy;
+        try {
+          await navigator.clipboard.writeText(text);
+        } catch (e) {
+          const ta = document.createElement('textarea');
+          ta.value = text;
+          document.body.appendChild(ta);
+          ta.select();
+          try { document.execCommand('copy'); } catch (_) {}
+          document.body.removeChild(ta);
+        }
+        const original = btn.textContent;
+        btn.textContent = 'Copied';
+        btn.classList.add('copied');
+        setTimeout(() => {
+          btn.textContent = original;
+          btn.classList.remove('copied');
+        }, 1500);
+      });
+    });
+  </script>
+</body>
+</html>
