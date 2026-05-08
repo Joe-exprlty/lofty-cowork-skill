@@ -26,23 +26,43 @@ LOFTY_API_KEY=your-lofty-jwt-here
 # LOFTY_RATE_LIMIT_DELAY=6.5
 
 
-# ── Optional: Cloudflare Worker integrations ─────────────────────
-# These are only needed if you've deployed your own Workers for the
-# leads index, short links, Jotform feedback, or showing-time SMS.
-# See claude-cowork-lofty-guide.md sections 15 and 16 for details.
+# ── Owner identity (used by Phase 2 showing helpers) ─────────────
+# These let prepare_showing stamp your identity into calendar invites
+# and let find_client exclude your own record from name searches.
+# Match what's in your CLAUDE.md.
 
-# Source for find_client lookups. "worker" reads from a live Worker
-# fed by Lofty webhooks. Anything else (or unset) reads from a local
-# file built by a refresh script. Start with the local file; switch
-# to "worker" once you've deployed the leads-index Worker.
+OWNER_FULL_NAME=<Your Name>
+OWNER_BROKERAGE=<Your Brokerage>
+OWNER_PHONE=<your-phone>
+OWNER_EMAIL=<your-email>
+OWNER_LAST_NAME_LOWER=<your last name lowercase>
+MLS_NAME=<your MLS, e.g. RMLS>
+
+
+# ── Phase 2: Cloudflare Worker integrations ──────────────────────
+# Only needed if you've deployed your own Workers. The Python client
+# fails soft when these are blank: find_client and find_listing_by_address
+# still work, but prepare_showing skips the SMS / short-link steps.
+# See references/extending.md and the Workers setup guide.
+
+# Source for find_client. "worker" reads from a live Worker fed by
+# Lofty webhook list 2. Anything else (default) reads from a local
+# file built by scripts/refresh_leads_index.py. Start with the file;
+# switch to "worker" once you've deployed the leads-index Worker.
 # LOFTY_LEADS_INDEX_SOURCE=file
 
-# Your leads-index Worker URL (yours will be different):
+# Override the local file path (default is <repo>/data/leads_index.json):
+# LOFTY_LEADS_INDEX_PATH=/absolute/path/to/leads_index.json
+
+# Warn-only threshold for local file age (default 14 days):
+# LOFTY_LEADS_INDEX_STALENESS_DAYS=14
+
+# Your leads-index Worker URL:
 # LEADS_INDEX_WORKER_URL=https://leads-index.<your-subdomain>.workers.dev
 
 # Bearer token for your leads-index Worker's /export endpoint.
-# Generate a random 32-char string; this value lives in BOTH this .env
-# AND the Worker's secret store.
+# Generate a random 32-char string; lives in BOTH this .env AND the
+# Worker's secret store.
 # LEADS_INDEX_EXPORT_API_KEY=your-bearer-token-here
 
 # Webhook secret in your leads-index Worker callback URL. Lofty webhook
@@ -56,7 +76,22 @@ LOFTY_API_KEY=your-lofty-jwt-here
 # Bearer token for your short-links Worker:
 # SHORTENER_API_KEY=your-shortener-bearer-token-here
 
-# Cloudflare API token, only needed if you'll deploy Workers via the
+# Your showing-sms Worker URL (Durable Objects, $5/mo Workers Paid plan):
+# SHOWING_SMS_BASE_URL=https://showing-sms.<your-subdomain>.workers.dev
+
+# The Jotform form ID for your post-showing feedback form. Just the
+# numeric ID (not the full URL). Look at your form's URL in Jotform:
+# https://www.jotform.com/build/<this-numeric-string>.
+# JOTFORM_FORM_ID=<your-jotform-form-id>
+
+# Your jotform-to-lofty Worker URL (handles form submissions and
+# serves the /preferences/<leadId> aggregation endpoint):
+# JOTFORM_WORKER_URL=https://jotform-to-lofty.<your-subdomain>.workers.dev
+
+# Bearer token for the jotform-to-lofty Worker /preferences endpoint:
+# LOFTY_PREFERENCES_API_KEY=your-preferences-bearer-token-here
+
+# Cloudflare API token, only needed if you'll deploy Workers via
 # wrangler CLI (required for showing-sms; optional for the others).
 # Get from: dash.cloudflare.com/profile/api-tokens, "Edit Cloudflare
 # Workers" template.

@@ -17,6 +17,33 @@ This file loads automatically into every Claude Cowork session. Keep it lean. De
 - Lofty User ID: <your-Lofty-user-id>
 - Team ID: <your-Lofty-team-id>
 - MLS Agent IDs: <e.g. RMLS: AGENT123, WVMLS: 5678>
+- MLS Name (used in showing-log notes): <e.g. RMLS, BrightMLS, GLVAR>
+
+The Phase 2 showing helpers (prepare_showing, find_client) read your identity from your `.env` so the Python can stamp it into calendar invites and exclude your own record from name searches. Set these in `.env` to match what's above:
+
+```
+OWNER_FULL_NAME=<Your Name>
+OWNER_BROKERAGE=<Your Brokerage>
+OWNER_PHONE=<your-phone>
+OWNER_EMAIL=<your-email>
+OWNER_LAST_NAME_LOWER=<your last name in lowercase>
+MLS_NAME=<e.g. RMLS>
+```
+
+---
+
+## Calendar Provider
+
+Where Claude should put showing reminders and other calendar events for me.
+
+CALENDAR_PROVIDER: <google | outlook | lofty | skip>
+
+- `google`: Use the Google Calendar MCP. Buyer gets an email invite directly from Google.
+- `outlook`: Use the Microsoft 365 connector. Beta in v1 of Phase 2; verify before relying on it.
+- `lofty`: Use Lofty's built-in calendar tasks. Always works, no extra setup. Limitation: text-only, no map links or HTML in the reminder, and the buyer will not get an invite from Lofty (Claude will email the buyer separately with an .ics attached).
+- `skip`: No calendar event will be created. The Lofty showing-log note is still written, and the buyer still gets an .ics by email.
+
+See `references/calendar_routing.md` for the routing rules.
 
 ---
 

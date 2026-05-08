@@ -110,6 +110,11 @@ Ask each of these as a separate question. Wait for an answer. Update `~/Code/lof
 5. "What's your work email address?" → owner email
 6. "What's your last name? I'll use this so Claude doesn't mistake you for a lead when searching." → for lead-search exclusion
 7. "What's your timezone? Like 'Pacific' or 'Eastern.'" → convert to America/Los_Angeles, America/New_York, etc.
+8. "Where do you want showing reminders to go on YOUR calendar? Pick one." → CALENDAR_PROVIDER. Offer four plain-English options:
+   - "Google Calendar (Gmail or Google Workspace)" → `google`. Quietly verify the Google Calendar MCP is installed; if missing, tell the user how to add it before continuing.
+   - "Microsoft Outlook or 365" → `outlook`. Quietly verify the Microsoft 365 connector is installed; if missing, tell the user how to add it before continuing. Mention this is a beta path and ask them to flag any issues.
+   - "Just use Lofty's built-in tasks" → `lofty`. Add a one-line note: "The Lofty reminder is text-only, no map link. The buyer still gets a polished email invite separately, so this is fine for most agents."
+   - "I'll handle reminders myself" → `skip`. Confirm: "Got it. I'll skip the calendar entry, but I'll still write the showing-log note in Lofty and send the buyer their invite by email."
 
 Do NOT ask for: Lofty user ID, team ID, MLS agent codes. Those will fill in later from the connection test.
 
@@ -180,8 +185,12 @@ For each workflow below, the full recipe (with edge cases) lives in `references/
 - **Find a client by name.** Starter client uses `search_leads()` (paginated, recent-first). For real lookup by name in a large CRM, build a leads index (see `references/extending.md`).
 - **Log a note.** `api.create_note(lead_id, content)`. Always confirm the lead ID with the user before posting.
 - **Get activity feed.** `api.get_lead_activities(lead_id)`. Use v1.0; v2.0 returns empty.
-- **Schedule a showing.** Requires extending the starter (see `references/extending.md`). The canonical flow is: prepare_showing helper → Google Calendar event → Lofty showing-log note. Do NOT use `create_task(APPOINTMENT)`; that triggers listing-agent approval.
-- **Send email or SMS.** ALWAYS confirm content with the user before calling `send_email` or `send_sms`. This is non-negotiable.
+- **Search the MLS.** `api.search_listings(filter_conditions, sort_fields)` posts to `/v2.0/listings/search`. Use comma-separated min,max for ranges (`"price": "400000,650000"`), lists for multi-value (`"propertyType": ["Single Family", "Condo"]`), and a nested `location` object for city/zip. Scope is `"all"` (full MLS), `"my"` (your listings), or `"office"`. Always pass `"listingStatus": ["Active"]` when looking up a real address; falling through to Pending or Sold masks typos.
+- **Create a task or follow-up reminder.** `api.create_task(lead_id, content, start_at, end_at, way="Call")` posts to `/v2.0/calendar` with `type_="TASK"`. Times must be ISO 8601 with offset. Do NOT pass `type_="APPOINTMENT"` for showings; that triggers listing-agent approval. For showings, use the prepare_showing pattern in `references/extending.md`.
+- **Put an event on the agent's calendar.** Read `CALENDAR_PROVIDER` from `CLAUDE.md` and route to the right backend (Google Calendar MCP, Microsoft 365 connector, Lofty's calendar via `api.create_task`, or skip). Full routing rules in `references/calendar_routing.md`. Always also write the Lofty showing-log note via `api.create_note` regardless of which provider is chosen.
+- **Build a buyer-facing .ics invite.** When `CALENDAR_PROVIDER` is `lofty` or `skip`, the chosen calendar can't email the buyer. Use `assets/ics_builder.py` (`build_ics(...)`) to generate an iCalendar string and send it through `api.send_email` so the buyer can drop the showing into their own calendar. Skip this step on the `google` and `outlook` paths because their native attendee-invite already emails the buyer; sending an .ics on top would duplicate.
+- **Send email.** `api.send_email(lead_id, subject, content)`. ALWAYS draft the subject and body, show them to the user, and get explicit confirmation before calling. The Python wrapper does not gate the send. This is non-negotiable.
+- **Send SMS.** `api.send_sms(lead_id, content)`. Same rule: draft, confirm, then send. Keep texts short. Sign with the agent's first name only ("Joe" not "Joe Saling, Saling Homes at eXp Realty").
 
 ---
 
@@ -230,13 +239,11 @@ Order of investigation:
 
 ## Building on this skill
 
-The starter client covers leads, notes, and activities. For more, see `references/extending.md`:
+The v1.2.0 starter covers leads, notes, activities, MLS search, tasks, email, and SMS. For deeper capability, see `references/extending.md`:
 
 - Adding showing scheduling helpers (`prepare_showing`, `find_listing_by_address`)
-- Building a leads index for real name search
-- Adding MLS search (`search_listings` with full filter syntax)
-- Adding tasks, email, SMS
-- Deploying the four Cloudflare Workers (leads-index, short-links, jotform-to-lofty, showing-sms)
+- Building a leads index for real name search across the full CRM
+- Deploying Cloudflare Workers (leads-index, short-links, jotform-to-lofty, showing-sms)
 - Subscribing to webhooks for live updates
 
 Each addition has a pattern in the full guide. Use the same `_request` plumbing the starter client provides; do not reinvent it.
@@ -261,3 +268,6 @@ Each addition has a pattern in the full guide. Use the same `_request` plumbing 
 - `references/quirks.md` - full quirks list with workarounds
 - `references/workflows.md` - step-by-step recipes for common tasks
 - `references/extending.md` - how to add capability beyond the starter
+- `references/calendar_routing.md` - which calendar provider to call based on the agent's setup choice
+- `assets/ics_builder.py` - buyer-facing .ics generator for the lofty and skip calendar paths
+- `assets/post_showing_questions.yaml` - the recommended question pack the agent forks at setup; drives the post-showing JotForm and the lead-update mapping

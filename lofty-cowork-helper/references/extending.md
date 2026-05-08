@@ -8,65 +8,61 @@ Read this when the user asks for something the starter doesn't do, or when you n
 
 ## Capability ladder
 
-Roughly in the order most agents add features:
+The starter ships with most of what a working day needs. As of v1.4.0, almost every documented Lofty surface is covered.
 
-1. **Starter (out of the box)** - leads (read), get_lead, activities, notes, tags, members, webhooks. Enough to answer "find a recent lead, log a note, see their activity."
+1. **Lead read/write (starter)** - `search_leads`, `get_lead`, `get_lead_activities`, `create_lead`, `update_lead`, `create_note`, `get_notes`, `update_note`, `delete_note`. Day-one operating capability.
 
-2. **Leads index** - the workaround for `/v1.0/leads` keyword and sort being broken. After this, "find Jane Smith" works against the full database.
+2. **MLS search (starter)** - `search_listings` with full filter syntax (city, price, beds, baths, sqft, property type, status). Needed for "show me 3-bed condos under $650k in NW Portland."
 
-3. **Showings** - `prepare_showing`, `find_listing_by_address`, MLS lookup, calendar invite, post-showing SMS. The biggest day-to-day workflow once leads work.
+3. **Communication (starter)** - `send_email`, `send_sms`. Plus history pulls: `get_call_history`, `get_email_history`, `get_text_history`. Sends are gated by SKILL.md's confirm-before-send rule; reads are unrestricted.
 
-4. **MLS search** - full filter syntax (city, price, beds, baths, sqft, property type). Needed for "show me 3-bed condos under $650k in NW Portland."
+4. **Tasks and calendar (starter)** - `create_task`, `get_tasks`, `update_task`, `complete_task`, `uncomplete_task`, `delete_task`, `get_available_meeting_slots`. Full lifecycle.
 
-5. **Communication** - `send_email`, `send_sms`, plus history pulls. Use only with confirmation.
+5. **Unified timeline (starter, v1.4.0)** - `get_system_logs(lead_id)` returns the human-readable timeline (calls, emails, texts, notes, stage transitions, manual logs) in chronological order. Reach for this BEFORE assembling per-channel pulls when Claude is asked "what's been happening with Jane lately?"
 
-6. **Tasks and calendar** - `create_task`, `update_task`, `complete_task`. Useful for follow-ups.
+6. **Activity & alerts (starter, v1.4.0)** - `add_lead_activity` (manual log entry), `get_alerts` (saved searches the lead subscribes to), `get_transactions`, `create_transaction`.
 
-7. **Webhooks** - subscribe Lofty to push events to your Workers. Powers the leads index, post-showing flows, and any "notify me when X" automation.
+7. **Team & schema introspection (starter, v1.4.0)** - `get_organization`, `get_members`, `get_tags`, `get_custom_fields`, `get_lead_ponds`. Use these to discover what your team has configured before reading or writing custom fields.
 
-8. **Cloudflare Workers** - leads-index, short-links, jotform-to-lofty, showing-sms. Background automations.
+8. **Leads index (starter, v1.3.0)** - `find_client` reads from `data/leads_index.json` (built by `scripts/refresh_leads_index.py`), or from a Cloudflare Worker once you've deployed one. v1.4 expanded the normalizer to capture buyer/seller intent, DNC flags, pond context, and the lead's `leadPropertyList` so Claude can answer richer questions without a per-match `get_lead` round-trip.
 
-Add features in roughly this order. Each layer builds on the one below.
+9. **Showings (starter, v1.3.0)** - `prepare_showing`, `find_listing_by_address`, `cancel_showing`, `list_pending_showings`, plus sub-helpers (`build_jotform_url`, `shorten_url`, `enqueue_showing_sms`, `build_showing_invite`). The biggest day-to-day workflow once leads work.
+
+10. **Buyer preferences (starter, v1.3.0)** - `get_buyer_preferences` reads the D1-backed showing-feedback rollup once you've deployed the jotform-to-lofty Worker.
+
+11. **Webhooks (starter)** - `get_webhooks`, `create_webhook`, `delete_webhook`. Subscribe Lofty to push events to your Workers. Powers the live leads index, post-showing flows, and "notify me when X" automation.
+
+12. **Cloudflare Workers (still optional)** - leads-index, short-links, jotform-to-lofty, showing-sms. The Python in the starter calls them when their URLs are present in `.env` and fails soft when blank.
+
+Things deliberately left OUT of the starter:
+- `delete_lead` - too dangerous to expose without strict guards. Use Lofty's UI.
+- `get_lead_analysis`, `generate_call_script` - the AI endpoints are broken in 2026 (return 500 / 400). Skip until Lofty fixes them.
+- Native showings or feedbacks endpoints - Lofty has no REST surface for these. The Phase 2 Workers + Jotform + D1 architecture fills the gap.
 
 ---
 
-## Adding a leads index (the most important upgrade)
+## Leads index (built into the starter as of v1.3.0)
 
-Why: `/v1.0/leads` silently ignores `keyword` (quirk #2). Without an index, you cannot reliably search the full database by name.
+Why it exists: `/v1.0/leads` silently ignores `keyword` (quirk #2). Without an index, `find_client` can only see the 25 most recently created leads. The starter solves this with a leads index that has two backends. Same `find_client(name)` API; different source under the hood.
 
-Two options. Pick one.
+### Backend A: local file (default)
 
-### Option A: local file (simple, manual refresh)
+The starter's `_load_leads_index_from_file` reads `data/leads_index.json`. Build it with:
 
-Add a refresh script that paginates through `/v1.0/leads` and writes the result to `data/leads_index.json`.
-
-Sketch:
-
-```python
-def refresh_leads_index(api, output_path):
-    all_leads = []
-    scroll_id = None
-    while True:
-        params = {"pageSize": 25}
-        if scroll_id:
-            params["scrollId"] = scroll_id
-        resp = api._request("GET", "/v1.0/leads", query_params=params)
-        leads = resp.get("leads", [])
-        all_leads.extend(leads)
-        scroll_id = resp.get("_metadata", {}).get("scrollId")
-        if not scroll_id or not leads:
-            break
-    with open(output_path, "w") as f:
-        json.dump({"leads": all_leads, "refreshedAt": time.time()}, f)
+```bash
+python3 scripts/refresh_leads_index.py
 ```
 
-Then `find_client(name)` reads `data/leads_index.json` and filters in memory.
+The script paginates `/v1.0/leads` with scrollId and writes the file atomically. Re-run it periodically:
 
-Refresh cadence: every couple of weeks for casual use, weekly for active prospecting. Run from a terminal, not Cowork bash (it would hit the 45s timeout).
+- Casual use: every couple of weeks.
+- Active prospecting (lots of new leads): weekly.
 
-Time cost: ~3 minutes for 650 leads at 6.5s rate-limit spacing.
+Run from your real terminal, not Cowork's bash tool (45-second timeout would cap this at ~6 API calls; the full scan takes ~3 minutes for 650 leads).
 
-### Option B: Cloudflare Worker fed by webhook list 2 (live, no refresh)
+The starter prints a (non-blocking) staleness warning when the file is older than `LOFTY_LEADS_INDEX_STALENESS_DAYS` (default 14).
+
+### Backend B: Cloudflare Worker fed by webhook list 2 (live, no refresh)
 
 Deploy a small Cloudflare Worker that subscribes to webhook list 2 (Lead Info events). Every lead create/update/delete posts to the Worker, which patches its KV store. The Worker exposes `/export` that the Python client reads.
 
@@ -114,115 +110,199 @@ Cost: free tier Workers + KV is plenty for typical real estate volume.
 
 ---
 
-## Adding showing scheduling
+## Showing scheduling (built into the starter as of v1.3.0)
 
-Showings are the highest-leverage workflow. The full helper does five things in one call:
+Showings are the highest-leverage workflow. As of v1.3.0 the full helper ships with the starter. `prepare_showing` is a DRY-RUN: it builds payloads and queues the post-showing SMS, but it does NOT create the calendar event, post the Lofty note, or send the buyer email. The calling skill (or you, in your own code) is responsible for those side-effects, in this order:
 
-1. Look up the listing by full address (`find_listing_by_address`).
-2. Look up the lead by name (`find_client`).
-3. Build a prefilled buyer-feedback URL (Jotform or your form provider) and shorten it.
-4. Build the calendar invite HTML and the showing-log note text.
-5. Optionally enqueue a 2-hour-before-showing SMS via the `showing-sms` Worker.
+1. Call `prepare_showing(full_address, start_datetime_iso, client_name=...)` to assemble payloads.
+2. Create the calendar event yourself via your provider (Google Calendar MCP at v1; see `references/calendar_routing.md` for alternatives).
+3. ONLY after the calendar event is confirmed, call `api.create_note(lead_id, showing_note_content)` to write the showing-log note. (Earlier versions wrote the note first; when the calendar step failed downstream, the note lied. The order here matters.)
 
-Pseudocode:
+`prepare_showing` accepts either `client_name=` (resolved via `find_client`) or `lead_id=` (resolved against the local leads index). Use `lead_id=` when two leads share a name or phone, so the caller can pin the exact record instead of getting a multiple-clients error.
+
+Return shape on success:
 
 ```python
-def prepare_showing(self, full_address, start_iso, client_name, duration_min=30):
-    listing = self.find_listing_by_address(full_address)
-    if listing.get("error"):
-        return {"error": listing["error"], "message": listing["message"]}
-    lead = self.find_client(client_name)
-    if not lead:
-        return {"error": "client_not_found", "message": f"No lead named {client_name}"}
-    feedback_url = self.build_jotform_url(lead, listing)
-    short_url = self.shorten_url(feedback_url)
-    calendar_invite = build_calendar_invite_html(listing, lead, start_iso, duration_min)
-    showing_note_content = build_showing_log_note(listing, start_iso)
-    if SHOWING_SMS_BASE_URL:
-        self.enqueue_showing_sms(lead["leadId"], start_iso, short_url, listing["streetAddress"])
-    return {
-        "listing": listing,
-        "lead": lead,
-        "jotform_url": feedback_url,
-        "short_url": short_url,
-        "calendar_invite": calendar_invite,
-        "showing_note_content": showing_note_content,
-    }
+{
+    "listing": {...},                     # slim MLS listing dict
+    "client": {...},                      # slim client dict
+    "jotform_url": "https://...",         # short link if available, long otherwise
+    "calendar_invite": {
+        "subject": "Home Showing: ...",
+        "description_html": "...",
+        "description_text": "...",
+        "location": "STREET, CITY, STATE ZIP",
+        "start_iso": "2026-05-15T14:00:00-07:00",
+        "end_iso":   "2026-05-15T14:30:00-07:00",
+        "attendee_email": "buyer@example.com",
+        "calendar": "owner@example.com",  # from OWNER_EMAIL in .env
+    },
+    "showing_note_content": "=== SHOWING LOG ===\n...",  # paste into create_note
+    "sms_queue": {...},                   # showing-sms Worker response, or None
+    "sms_showing_key": "12345:11513-sw-bambi-ln",
+}
 ```
 
-Each helper (`build_jotform_url`, `shorten_url`, `enqueue_showing_sms`) is its own method. The full implementation is in `references/full-guide.md` section 14.
+Failure shapes:
+
+- `{"error": "<message>"}` for missing args, listing miss, or invalid datetime.
+- `{"error": "Multiple clients match. Pass lead_id= to pin one:", "candidates": [...]}` when `client_name=` resolves to more than one lead.
+
+The five Phase 2 sub-helpers each work standalone too, in case you want to compose them differently:
+
+- `find_listing_by_address(full_address)` - Active-only MLS lookup.
+- `find_client(name, exclude_stages=[...])` - leads-index name search.
+- `build_jotform_url(lead_id, ..., shorten=True)` - prefilled feedback form URL.
+- `shorten_url(long_url, prefix="b")` - branded short link, falls through to long URL.
+- `build_showing_invite(client_first_name, listing, start_dt, end_dt, jotform_url)` - returns subject + HTML + text + location.
+- `enqueue_showing_sms(lead_id, send_at_iso, short_url, property_short_address, ...)` - POST to the showing-sms Worker. Best-effort; returns None on failure.
+- `_showing_key_and_short(lead_id, listing, full_address)` - the slug builder. Both prepare and cancel use this so they cannot drift.
+
+To cancel a queued showing (e.g. buyer reschedules):
+
+```python
+result = api.cancel_showing(lead_id, full_address)
+# Returns one of:
+# {"status": "cancelled", "showing_key": "...", "worker_response": {...}, "cancelled_entry": {...}}
+# {"error": "no_match", "message": "...", "pending": [...]}
+# {"error": "multiple_matches", "candidates": [...], "message": "..."}
+```
+
+`cancel_showing` does loose case-insensitive substring matching on the address against the queue's `property_short_address`, so the user doesn't have to type the exact format that was queued. If two queued showings match, the function returns `multiple_matches` with the candidates and you call `cancel_showing_by_key(showing_key)` directly.
+
+To read aggregated buyer feedback after a series of showings:
+
+```python
+prefs = api.get_buyer_preferences(lead_id)
+# {
+#   "status": "ok",
+#   "total_showings": 4,
+#   "loved": [{"tag": "yard", "count": 3}, ...],
+#   "dealbreakers": [{"tag": "street noise", "count": 2}, ...],
+#   "average_ratings": {"first_reaction": 4.0, "daily_life_fit": 3.5, ...}
+# }
+```
+
+`get_buyer_preferences` hits the jotform-to-lofty Worker's `/preferences/<leadId>` endpoint, which queries the `showing_feedback` D1 database. Use it to pre-fill calendar invite descriptions ("based on your last 4 showings, you've loved yards but flagged street noise"), build artifacts, or sanity-check how a new property compares to the buyer's signal.
 
 ---
 
 ## Adding MLS search
 
-The starter doesn't include `search_listings`. Add it:
+As of v1.2.0 `search_listings` ships with the starter. The actual body shape, verified live in May 2026:
 
 ```python
 def search_listings(self, filter_conditions=None, sort_fields=None,
                     page=1, page_size=25, sold=False, scope="all"):
-    body = {
-        "page": page,
+    return self._request("POST", "/v2.0/listings/search", body={
+        "searchScope": scope,
+        "soldFlag": sold,
+        "filterConditions": filter_conditions or {},
+        "sortFields": sort_fields or ["MLS_LIST_DATE_L_DESC"],
+        "pageNum": page,
         "pageSize": page_size,
-        "scope": scope,
-        "sold": sold,
-        "filter": filter_conditions or {},
-    }
-    if sort_fields:
-        body["sort"] = sort_fields
-    return self._request("POST", "/v2.0/listings/search", body=body)
+    })
 ```
 
-Filter syntax (the slightly weird parts):
+Body key gotchas (Lofty quirk #15). Sending the obvious names returns HTTP 200 with zero results and no error, so the bug is silent:
+
+- `searchScope`, not `scope`
+- `soldFlag`, not `sold`
+- `filterConditions`, not `filter`
+- `sortFields`, not `sort`
+- `pageNum`, not `page`
+
+Filter conditions (nested under `filterConditions`):
 
 - Range fields use comma-separated min,max: `"price": "400000,650000"`, `"beds": "3,"`, `"sqft": ",2500"`.
 - Multi-value fields use lists: `"propertyType": ["Single Family", "Condo"]`.
 - Location uses nested object: `{"location": {"city": ["Portland"], "zipCode": ["97225"]}}`.
+- Status filter: `"listingStatus": ["Active"]`.
 
 Sort options: `PRICE_DESC`, `PRICE_ASC`, `MLS_LIST_DATE_L_DESC`.
 
 Scope: `"all"` (full MLS), `"my"` (your listings), `"office"` (your office).
 
+Response shape (Lofty quirk #16): results land under `"listing"` (singular), not `"listings"`. Total count lives at `response["metadata"]["total"]`.
+
+```python
+resp = api.search_listings(filter_conditions={...})
+items = resp.get("listing") or []
+total = (resp.get("metadata") or {}).get("total")
+```
+
 The `/v1.0/listing` endpoint exists but does not work with personal API key auth (quirk #10). Always use this `/v2.0/listings/search` with `scope="my"` instead.
 
 ---
 
-## Adding `find_listing_by_address`
+## `find_listing_by_address` (built into the starter as of v1.3.0)
 
-Lofty's listing search does NOT support keyword or street-address filters. The reliable approach:
+Lofty's listing search does NOT support keyword or street-address filters. The starter's reliable approach:
 
 1. Parse the zip from the full address (last 5-digit number).
-2. Search `{"location": {"zipCode": [zip]}, "listingStatus": ["Active"]}`.
-3. Filter the returned listings client-side by uppercase street-address substring match.
-4. Return the first hit, or `{"error": "address_not_found"}` on miss.
+2. Search `{"location": {"zipCode": [zip]}, "listingStatus": ["Active"]}` with `pageSize=100`.
+3. Paginate up to 10 pages within the zip and filter client-side by uppercase street-address substring (in either direction, so `"11513 SW BAMBI LN"` matches both `"11513 SW BAMBI LN"` and `"11513 SW Bambi Ln"`).
+4. Return the slim listing dict on hit, structured error on miss.
 
-Active only by design. Don't fall through to Pending or Sold; that masks typos.
+Active only by design. Don't fall through to Pending or Sold; that masks typos. If the user types a wrong zip, the function says so directly so you can confirm with them and retry.
 
-The `siteDetailLink` field on a returned listing is the user's IDX site URL (e.g., `<your-domain>.com/listings/...`). Use it in calendar invites.
+The slim listing dict the helper returns maps Lofty's response keys to friendlier names. Watch for these renames if you write your own caller:
 
----
+- `bedrooms` → `beds`
+- `bathrooms` → `baths`
+- `id` → `loftyListingId`
 
-## Adding tasks, email, SMS
+Other keys pass through unchanged: `address`, `streetAddress`, `city`, `state`, `zipCode`, `price`, `sqft`, `propertyType`, `mlsListingId`, `listingStatus`, `siteDetailLink`, `mlsOrgId`.
 
-The endpoints:
+The `siteDetailLink` field is the agent's IDX site URL (e.g., `<your-domain>.com/listings/...`). Use it in calendar invites and showing-log notes.
 
-- Tasks: `POST /v2.0/calendar` to create, `POST /v2.0/calendar/<id>/finish` to complete, `GET /v2.0/calendar` to list.
-- Email: `POST /v1.0/message/email/send` with `{leadId, subject, content}`.
-- SMS: `POST /v1.0/message/sms/send` with `{leadId, content}`.
+## The slim client dict shape
 
-For Tasks, the body shape:
+Both `find_client` and `_client_dict_from_index` return the same slim client dict:
 
 ```python
 {
-    "type": "TASK" or "APPOINTMENT",
-    "leadId": <number>,
-    "content": "...",
-    "startAt": "2026-05-08T14:00:00-07:00",
-    "endAt": "2026-05-08T14:30:00-07:00",
-    "way": "Call" / "Email" / "Text" / "Meeting" / "Other",
-    "assignedRole": "ASSIGNED"
+    "leadId": 12345,
+    "firstName": "Jane",
+    "lastName": "Smith",
+    "email": "jane@example.com",   # first email if multiple
+    "phone": "5035551212",          # first phone if multiple
+    "stage": "New Lead",
+    "score": 50,
 }
 ```
+
+If you need the full lead record (more fields, all emails, all phones), call `api.get_lead(leadId)` separately. The slim dict is what `prepare_showing` consumes, since that's all the showing flow needs.
+
+---
+
+## Tasks, email, SMS (built into the starter as of v1.2.0)
+
+These are now part of the starter's `LoftyAPI`. The endpoints, with the body shapes that actually work (verified live, May 2026):
+
+**Tasks:** `POST /v2.0/calendar` to create, `POST /v2.0/calendar/<id>/finish` to complete, `PUT /v2.0/calendar/<id>` to update, `DELETE /v2.0/calendar/<id>` to delete, `GET /v2.0/calendar` to list. `update_task`, `complete_task`, and `delete_task` are not in the v1.2.0 starter yet; add them when needed using the same `_request` plumbing.
+
+The create body (Lofty quirk #17):
+
+```python
+{
+    "type": "TASK",                       # or "APPOINTMENT" (NOT for showings)
+    "content": "Call back about pre-approval",
+    "leadId": 12345,                      # number, not string
+    "startAt": "2026-05-08T14:00:00-07:00",
+    "endAt": "2026-05-08T14:30:00-07:00",
+    "timeZoneCode": "America/Los_Angeles",  # required
+    "taskWay": "Call",                    # NOT "way". Values: Call, Email, Text, Meeting, Other
+    "assignedRole": "Agent",              # optional. Values: Agent, Assistant. NOT "ASSIGNED"
+    "address": "..."                      # optional, for APPOINTMENT only
+}
+```
+
+If you send `"way"` instead of `"taskWay"`, or use `"ASSIGNED"` as the role, Lofty returns error code 20012 "Invalid parameter" with no hint about which key is wrong.
+
+**Email:** `POST /v1.0/message/email/send` with `{"leadId", "subject", "content"}`. Content supports HTML.
+
+**SMS:** `POST /v1.0/message/sms/send` with `{"leadId", "content"}`.
 
 For Email and SMS: ALWAYS confirm content with the user before sending. This is non-negotiable. The send endpoints return success even when the user wishes they hadn't.
 

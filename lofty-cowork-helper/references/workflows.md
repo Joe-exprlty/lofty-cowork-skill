@@ -159,19 +159,21 @@ This rule exists because emails and SMS go to real clients. A wrong message land
 
 ```python
 api.create_task(
-    task_type="TASK",            # or "APPOINTMENT" for non-showing meetings only
-    content="Call back about pre-approval",
     lead_id=12345,
+    content="Call back about pre-approval",
     start_at="2026-05-08T14:00:00-07:00",
     end_at="2026-05-08T14:30:00-07:00",
     task_way="Call",              # Call, Email, Text, Meeting, Other
-    assigned_role="ASSIGNED"
+    # task_type defaults to "TASK"
+    # assigned_role is optional; valid values are "Agent" or "Assistant"
 )
 ```
 
 Times use ISO 8601 with offset. Pacific is `-07:00` in DST, `-08:00` outside.
 
-Reminder: do NOT use `task_type="APPOINTMENT"` for showings (quirk: triggers listing-agent approval).
+Lofty body shape gotchas (quirk #17): the API field is `taskWay` not `way`, `timeZoneCode` is required (the wrapper supplies America/Los_Angeles by default), and `assignedRole` accepts `"Agent"` or `"Assistant"` only (not `"ASSIGNED"`).
+
+Reminder: do NOT use `task_type="APPOINTMENT"` for showings (triggers listing-agent approval).
 
 ---
 

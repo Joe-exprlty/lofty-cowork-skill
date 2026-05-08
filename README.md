@@ -36,10 +36,10 @@ lofty-cowork-skill/
 
 When a user mentions Lofty in a Cowork conversation, this skill activates. It:
 
-- Walks first-time users through setup (API key, .env, scripts folder, CLAUDE.md customization, connection test)
+- Walks first-time users through setup in plain English (Easy Mode by default; Power User Mode for technical users who say "skip ahead")
 - Handles common workflows (find lead, log note, get activity feed) using a bundled starter Python client
 - Surfaces the API's quirks before the user hits them (auth header, ignored params, broken endpoints)
-- Points at a comprehensive guide for anything not in the skill body
+- Points at a comprehensive reference guide for anything not in the skill body
 - Documents the upgrade path: from starter to leads index, showings, MLS search, Cloudflare Workers
 
 The skill is read-only by design. It installs starter code into the user's workspace; the user owns and edits their own copy.

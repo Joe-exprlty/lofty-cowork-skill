@@ -1,0 +1,183 @@
+# Post-Showing Question Pack
+# ===========================
+# The recommended question set used to seed an agent's post-showing JotForm.
+# Each agent forks this file at setup, edits any question they want, and the
+# skill builds a JotForm in their own JotForm account using the resulting
+# question list.
+#
+# Schema is locked to the showing_feedback D1 table that the
+# jotform-to-lofty Worker writes to. Renaming a question's prompt is fine.
+# Renaming a `purpose` tag breaks the Worker's column mapping. Don't do
+# that without also editing the Worker.
+#
+# Field types:
+#   rating_1_5   - 1-to-5 buttons. Stored as INTEGER 1-5 in D1.
+#   long_text    - paragraph answer. Stored as TEXT.
+#   multi_select - up to 5 picks from `options`. Stored as JSON array TEXT.
+
+form_metadata:
+  title: "Post-Showing Property Feedback"
+  description: "We'd love your honest take. Two minutes, makes a real difference."
+  thank_you_message: "Thanks. I'll review this before our next conversation."
+  # The form's branded header injects property address and stats from the
+  # prefilled hidden fields. Edit the styling, keep the placeholder names.
+  header_html: |
+    <div style="text-align:center;padding:8px 4px;">
+      <div style="font-size:14px;color:#D4AF37;font-weight:700;letter-spacing:1px;margin-bottom:12px;">PROPERTY DETAILS</div>
+      <div style="font-size:22px;font-weight:700;color:#1a1a1a;margin-bottom:8px;line-height:1.3;">{propertyAddress}</div>
+      <div style="font-size:16px;color:#555;margin-bottom:14px;">{propertyStats}</div>
+      <div style="font-size:14px;color:#777;">Tour date: {showingDate}</div>
+    </div>
+
+# Hidden fields prefilled by prepare_showing when the form URL is built.
+# Buyer never sees these. They make the submission usable on the lead record
+# without the buyer having to identify themselves or the property.
+hidden_fields:
+  - id: lead_id
+    purpose: link_to_lead
+    description: "Lofty numeric lead ID. Used to attach the submission to the right lead."
+
+  - id: client_name
+    purpose: greeting_personalization
+    description: "First name only. Used in the form header and any follow-up emails."
+
+  - id: agent_email
+    purpose: routing
+    description: "Where the Lofty webhook routes alerts. Lets one form serve agents on a team."
+
+  - id: property_address_hidden
+    purpose: identify_property
+    description: "Full street address used in the JotForm header and the Lofty note."
+
+  - id: showing_date_hidden
+    purpose: timestamp_context
+    description: "ISO 8601 datetime of the showing. Used in the Lofty note and to compute time-since-showing."
+
+# Buyer-facing questions in display order. The schema maps each `purpose`
+# tag to a column in the showing_feedback D1 table, written by the
+# jotform-to-lofty Worker.
+questions:
+  - id: first_reaction
+    prompt: "First reaction walking in?"
+    purpose: first_reaction
+    field_type: rating_1_5
+    required: true
+    rationale: "Captures the gut response in numeric form for trend analysis. The first 30 seconds in a home reveal more about fit than any analysis. Stored as 1-5 INTEGER in showing_feedback.first_reaction."
+
+  - id: daily_life_fit
+    prompt: "How did the home work for your daily life?"
+    purpose: daily_life_fit
+    field_type: rating_1_5
+    required: false
+    rationale: "Distinguishes 'pretty home' from 'home for THIS buyer.' Tracks the practical fit (office, kid space, garage) that matters when emotion fades. Stored as 1-5 INTEGER in showing_feedback.daily_life_fit."
+
+  - id: neighborhood_rating
+    prompt: "What about the neighborhood and location?"
+    purpose: neighborhood_rating
+    field_type: rating_1_5
+    required: false
+    rationale: "Buyers often shift their preferred areas after touring. Numeric scoring across showings reveals their actual location preference. Stored in showing_feedback.neighborhood_rating."
+
+  - id: condition_rating
+    prompt: "Condition and move-in readiness?"
+    purpose: condition_rating
+    field_type: rating_1_5
+    required: false
+    rationale: "Distinguishes buyers willing to take on projects from those who want turn-key. Big variable in pricing strategy. Stored in showing_feedback.condition_rating."
+
+  - id: value_rating
+    prompt: "At the asking price, does this feel like a fair value?"
+    purpose: value_rating
+    field_type: rating_1_5
+    required: false
+    rationale: "5 = strong value, write it up. 1 = overpriced. Combined with shortlist score, drives offer-prep automation. Stored in showing_feedback.value_rating."
+
+  - id: short_list
+    prompt: "Does this home make your short list?"
+    purpose: short_list
+    field_type: rating_1_5
+    required: true
+    rationale: "5 triggers a 24-hour callback and offer-prep flow. 4 triggers a comparison email. 1-2 flags the home's features as 'avoid' for future searches. The single most useful question. Stored in showing_feedback.short_list."
+
+  - id: standout_text
+    prompt: "What stood out, good or bad?"
+    purpose: standout_text
+    field_type: long_text
+    required: false
+    rationale: "Open-ended catch-all. Often surfaces the one specific feature that made or broke the visit (a smell, a view, the neighbor's dog). Stored in showing_feedback.standout_text."
+
+  - id: memory_notes
+    prompt: "Anything else to remember about this home?"
+    purpose: memory_notes
+    field_type: long_text
+    required: false
+    rationale: "Second open field, used by buyers who want to capture more nuance. Stored in showing_feedback.memory_notes."
+
+  - id: loved_tags
+    prompt: "What you loved (pick up to 5)"
+    purpose: loved_tags
+    field_type: multi_select
+    max_selections: 5
+    options:
+      - "Open layout"
+      - "Natural light"
+      - "Yard / outdoor space"
+      - "Primary on main"
+      - "Primary suite (upstairs or otherwise)"
+      - "Garage / storage"
+      - "Walkable to amenities"
+      - "Quiet street"
+      - "View"
+      - "Move-in ready"
+      - "Character / charm"
+      - "Kitchen"
+      - "Location fit"
+    required: false
+    rationale: "Multi-select is what turns 'write-only feedback' into a queryable buyer profile. After three showings, the most-loved tags become the agent's filter for finding similar listings. Stored as JSON array in showing_feedback.loved_tags."
+
+  - id: dealbreaker_tags
+    prompt: "Dealbreakers (pick up to 5)"
+    purpose: dealbreaker_tags
+    field_type: multi_select
+    max_selections: 5
+    options:
+      - "Street noise"
+      - "Small yard"
+      - "Primary not on main"
+      - "Garage too small"
+      - "HOA"
+      - "Too much work needed"
+      - "Layout chops up"
+      - "Condition"
+      - "No view"
+      - "Bad commute"
+      - "Too close to busy road"
+    required: false
+    rationale: "After three showings, dealbreakers become the agent's filter against the MLS. Stored as JSON array in showing_feedback.dealbreaker_tags."
+    intentionally_excluded:
+      - tag: "Flood zone"
+        reason: "Most metro homes aren't in a flood zone and surfacing the option plants a concern buyers don't otherwise have. Add per-buyer only if flood proximity genuinely applies to their target areas."
+
+# claude_tags is a reserved schema column for future LLM-extracted tags
+# (e.g. an LLM reads standout_text + memory_notes and infers tags the buyer
+# didn't think to select from the multi-select list). Not a question the
+# buyer answers. Reserved by the Worker, populated by a downstream process.
+reserved_columns:
+  - name: claude_tags
+    type: "JSON array TEXT"
+    purpose: "LLM-extracted tags from free-text fields, written by a future enrichment pass."
+
+# Setup-time customization rules
+# ------------------------------
+# The agent forks this YAML at setup. They can:
+#   - Reorder questions (preserve order in the agent's copy; skill respects it)
+#   - Edit any prompt text without changing purpose tags
+#   - Drop a question by setting `enabled: false`
+#   - Edit the `options` lists for loved_tags and dealbreaker_tags
+#
+# What they should NOT do without a code change:
+#   - Rename a `purpose` tag (it maps to a D1 column name; renaming breaks
+#     the jotform-to-lofty Worker's column mapping)
+#   - Change a `field_type` (the Worker assumes the schema's column type)
+#   - Remove the rating questions entirely (the recap email aggregates
+#     averages from these; missing data is fine, missing column is not)

@@ -22,7 +22,7 @@ These behaviors were observed during testing on one team's Lofty account in mid-
 
 ## The rest
 
-6. **GET requests must NOT send `Content-Type`.** Some endpoints return 415 Unsupported Media Type if you do. The starter client only sends `Content-Type` on POST and PUT.
+6. **OBSOLETE in v1.4.0. Always send `Content-Type: application/json`.** Earlier client versions only sent the header on POST/PUT. Live testing in May 2026 showed two endpoints (`/v1.0/team-features/lead-ponds`, `/v1.0/teamFeatures/listCustomField`) reject GET WITHOUT it (415 "Content-Type 'null' is not supported") and ALL DELETE endpoints reject without it (400 errorCode=20001). Sending it on every method is verified safe across all read endpoints the client uses. The v1.4 `_request` always sends the header. See quirks #21 and #22.
 
 7. **Lead data shape:** `phones` and `emails` are plain string arrays, not objects. Code that expects `lead.emails[0].address` will fail; the right path is just `lead.emails[0]`.
 
@@ -39,6 +39,34 @@ These behaviors were observed during testing on one team's Lofty account in mid-
 13. **Webhook list 3 payloads are pings.** The body is just `{leadId, updateTime}` with no activity type or detail. Consumers must call `/v1.0/leads/{id}/activities` to enrich. Delivery SLA: typically under 1 minute, sometimes up to 5.
 
 14. **Cowork's bash tool has a 45-second hard timeout.** At 6.5s spacing, that caps a single bash call at about 6 API requests. Long scans (the 650-lead index refresh runs ~3 minutes) must be run from the user's real terminal or chunked.
+
+15. **`/v2.0/listings/search` body keys are NOT the obvious names.** Verified live in May 2026. Send `searchScope` (not `scope`), `soldFlag` (not `sold`), `filterConditions` (not `filter`), `sortFields` (not `sort`), `pageNum` (not `page`), and `pageSize`. Sending the obvious names returns HTTP 200 with 0 results and no error, so the bug is silent. The starter client's `search_listings` uses the right keys; if a caller writes their own request body, get this exactly right.
+
+16. **`/v2.0/listings/search` results live under `listing` (singular), not `listings`.** The response shape is `{"listing": [...], "metadata": {"total": N}}`. Code that reads `response["listings"]` returns nothing.
+
+17. **`/v2.0/calendar` create body uses `taskWay`, not `way`, and requires `timeZoneCode`.** The valid `assignedRole` values are `"Agent"` and `"Assistant"`, not `"ASSIGNED"`. Mismatched names return error code 20012, "Invalid parameter" with no hint about which key is wrong. The starter client's `create_task` handles this; raw callers need to match exactly.
+
+18. **`find_listing_by_address` is Active-only by design.** Earlier versions fell through to Pending and Sold when an Active match wasn't found, which masked typos: a wrong city or wrong zip would silently return None instead of telling the user the address is bad. The shipped helper now returns `{"error": "address_not_found", "zipCode": "<parsed>", "message": "..."}` so the caller can ask the user to verify. If the listing genuinely is Pending or Sold, query that scope yourself with `search_listings(filter_conditions={"location": {"zipCode": [zip]}, "listingStatus": ["Pending"]})`.
+
+19. **The showing-sms Worker reuses your Lofty JWT as its bearer token.** `enqueue_showing_sms`, `list_pending_showings`, and `cancel_showing_by_key` all send `Authorization: Bearer $LOFTY_API_KEY` to the Worker. The Worker is configured to accept the Lofty JWT as its shared secret. This avoids managing yet another API key, but it does mean rotating your Lofty key requires updating the Worker's environment too. The other Workers (`short-links`, `jotform-to-lofty`) use their own bearer tokens (`SHORTENER_API_KEY`, `LOFTY_PREFERENCES_API_KEY`).
+
+20. **`prepare_showing` is a dry-run helper, not a side-effect machine.** It returns payloads and queues the post-showing SMS, but it does NOT create the calendar event, post the Lofty note, or email the buyer. The calling code is responsible for those, in order: create calendar event, then post the Lofty note (so the note can truthfully say "Calendar invite sent to: <email>"), then optionally email the buyer with the .ics. An earlier version posted the note first; when the calendar step failed downstream, the note lied about a meeting that never got scheduled. Don't reorder these.
+
+21. **Some GET endpoints REQUIRE `Content-Type: application/json`** (the OPPOSITE of the older quirk #6 guidance). `/v1.0/team-features/lead-ponds` and `/v1.0/teamFeatures/listCustomField` return 415 "Content-Type 'null' is not supported" when the header is absent, and 200 with data when it's present. The v1.4 `_request` plumbing always sends it. If you write a raw caller, do the same.
+
+22. **DELETE endpoints REQUIRE `Content-Type: application/json`.** `DELETE /v1.0/notes/<id>` and `DELETE /v1.0/webhook/<id>` both return 400 errorCode=20001 "Content-type must be: application/json" without the header. Pre-v1.4 client versions silently failed on every DELETE call because they only sent the header on POST/PUT. Combined with quirk #21, the only safe rule is to always send Content-Type, on every method.
+
+23. **`/v1.0/members` is hard-capped at 25 per page**, the same silent-ignore pattern as `/v1.0/leads` (quirk #2). Asking for `pageSize=5` or `pageSize=500` both return 25. Pagination via `_metadata.scrollId` works the same way as on `/v1.0/leads`.
+
+24. **`/v1.0/teamFeatures/listTag` returns BOTH definitions and applied instances.** A single response contains entries with `leadId == 0` (tag definitions, never applied) AND entries with `leadId > 0` (a specific tag applied to a specific lead). The endpoint name suggests "tags configured on the team" but the payload mixes both. Filter `[t for t in tags if t['leadId'] == 0]` for definitions only.
+
+25. **`/v1.0/me` returns a different ID format than the rest of the API.** `GET /v1.0/me` returns `{"id": 113209, ...}` (a short integer). But `creatorUserId`, `assignedUserId`, `leadUserId`, `lenderUserId` on every other record are 15-digit strings (e.g. `844510972070138`). Both refer to the same user; they're different addressing schemes. Code that joins `/v1.0/me.id` against any of those other fields will match nothing. Use the 15-digit form (which appears in HANDOFF.md and on every record this user touches) when joining; use the short `id` only inside `/v1.0/me`.
+
+26. **`/v1.0/leads/<id>/activities` returns a LIST directly, not a dict envelope.** Most endpoints wrap responses in `{"key": [...]}`. Activities does not. Code that does `response.get("activities", [])` returns `[]` and silently drops the data. The starter's `get_lead_activities` already accommodates both shapes.
+
+27. **`/v2.0/ai/lead-analysis` returns 500 errorCode=20005, not 404.** Pre-v1.4 docs said this AI endpoint was "not enabled / no replacement." In 2026 the endpoint accepts the call and crashes server-side. Treat as broken, not as cleanly absent.
+
+28. **`/v2.0/ai/call-script` returns 400 errorCode=20012 "Invalid parameter".** The documented call shape `{"leadId": <id>}` is rejected. Body or path may have changed in 2026. Treat as broken pending further probing.
 
 ---
 

@@ -464,15 +464,18 @@ Plain text. No title field. The Lofty UI shows the first line as a sort of de-fa
 
 ```python
 api.create_task(
-    task_type="TASK",          # or "APPOINTMENT" for non-showing meetings only
-    content="Call back about pre-approval",
     lead_id=12345,
+    content="Call back about pre-approval",
     start_at="2026-05-08T14:00:00-07:00",
     end_at="2026-05-08T14:30:00-07:00",
     task_way="Call",            # Call, Email, Text, Meeting, Other
-    assigned_role="ASSIGNED"
+    # task_type defaults to "TASK". Use "APPOINTMENT" for non-showing meetings only.
+    # assigned_role is optional. Valid values: "Agent" or "Assistant".
+    # timezone_code defaults to "America/Los_Angeles".
 )
 ```
+
+Body shape gotchas: Lofty rejects `way` (must be `taskWay`), requires `timeZoneCode`, and only accepts `"Agent"` or `"Assistant"` for `assignedRole`. Sending the wrong shape returns error code 20012, "Invalid parameter," with no hint about which key is wrong. The wrapper handles the translation. See `references/quirks.md` #17.
 
 ### Send email or SMS (CONFIRM IN CHAT FIRST)
 
