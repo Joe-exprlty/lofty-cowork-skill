@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [1.4.1] - 2026-05-08
+
+Focused fix release. `find_client` now finds contacts that haven't yet synced into the local leads index. Before this patch, creating a new lead in Lofty and immediately asking Claude to find them returned "no match" because the index file (or the leads-index Worker) was still catching up. Now the lookup falls back to the live API and surfaces the new contact in one extra request.
+
+### Fixed
+- `find_client(name)` now falls back to a live `/v1.0/leads` scan when the local index returns no match. The API's default sort is newest-first, so a contact created seconds before the call lands at the top of page 1 and gets matched without waiting on the leads-index Worker's webhook delivery (1-5 minutes) or a manual `refresh_leads_index.py` run. Verified live by creating a fresh contact and watching the pre-fix behavior return `none` while the post-fix behavior returns `match` in one extra API call.
+
+### Added
+- `_search_recent_leads(max_pages=3, page_size=25)` helper. Yields leads from `/v1.0/leads` using `_metadata.scrollId` cursor pagination, since the obvious `page=N` parameter is silently ignored (new quirk #29). Default scan is the most recent 75 leads.
+- New parameter `fallback_pages=3` on `find_client`. Set to `0` to disable the fallback and restore pre-1.4.1 behavior. Higher values scan more pages.
+- Quirk #29: `/v1.0/leads` `page` parameter is silently ignored. Confirmed live in May 2026 (page=2 returns the same first 25 leads as page=1). scrollId is the only working pagination mechanism on this endpoint. Documented in `references/quirks.md`.
+
+### Changed
+- `search_leads` docstring updated to flag that `page` is silently ignored alongside the previously documented `keyword` and `sortField`. Behavior of `search_leads` is unchanged; only the comment is more accurate now.
+- `find_client` return shape gains an additive `"source"` key with values `"index"`, `"api"`, or `"index+api"`. Existing callers that only read `match` / `candidates` / `none` keep working. Callers that care about freshness can now distinguish a cached hit from a fresh API hit.
+
+### Notes
+- v1.4.1 is a fix release. No new features, no new account requirements. A fresh installer needs only Lofty plus Python; no Cloudflare, no Jotform, no Resend.
+- The `fallback_pages=3` default adds 1 to 3 extra API calls per `find_client` miss, at the rate-limit spacing of 6.5 seconds per call. Common case (new contact in page 1) is one extra call. Set `fallback_pages=0` if you need the old behavior for benchmarking or to suppress all extra requests.
+- The same fix has been applied to the production reference at `saling-automation/scripts/lofty_api.py` so Joe's daily workflow benefits immediately. The two clients stay in lockstep.
+
+---
+
 ## [1.4.0] - 2026-05-07
 
 API surface expansion. Doubles the read coverage and rounds out task / note / webhook lifecycles. Unblocks every DELETE in the client by fixing a Content-Type bug that was silently breaking `delete_note` in production.

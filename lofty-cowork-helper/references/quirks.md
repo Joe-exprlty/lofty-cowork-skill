@@ -68,6 +68,8 @@ These behaviors were observed during testing on one team's Lofty account in mid-
 
 28. **`/v2.0/ai/call-script` returns 400 errorCode=20012 "Invalid parameter".** The documented call shape `{"leadId": <id>}` is rejected. Body or path may have changed in 2026. Treat as broken pending further probing.
 
+29. **`/v1.0/leads` `page` parameter is silently ignored.** Confirmed live in May 2026. Calling `page=2` returns the same first 25 leads as `page=1`. The only working pagination is `scrollId` from the response's `_metadata`: pass that value back as a query param to get the next 25. Default sort appears to be newest-first (createTime DESC), which is what the v1.4.1 `find_client` fallback relies on. Quirk #2 covered keyword/sortField/startTime; #29 adds `page` to that list. The starter's `_search_recent_leads` helper handles scrollId pagination correctly.
+
 ---
 
 ## Webhook event types

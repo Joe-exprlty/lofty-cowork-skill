@@ -290,13 +290,48 @@ class LoftyAPI:
     def search_leads(self, page=1, page_size=25):
         """List leads, paginated.
 
-        WARNING: Lofty silently ignores `keyword`, `sortField`, and `startTime`
-        on this endpoint (Lofty quirk #2). Sort always returns leadId DESC.
-        For lead lookup by name, build a leads index instead. The full guide
-        has the pattern (section 15).
+        WARNING: Lofty silently ignores `keyword`, `page`, `sortField`,
+        and `startTime` on this endpoint (Lofty quirks #2 and #29). The
+        `page` parameter is accepted but ignored: page=2 returns the
+        same 25 leads as page=1. To paginate, use scrollId from the
+        response's _metadata. Default sort is newest first
+        (createTime DESC), which is exactly what find_client's
+        new-contact fallback relies on.
         """
         return self._request("GET", "/v1.0/leads",
                              query_params={"page": page, "pageSize": page_size})
+
+    def _search_recent_leads(self, max_pages=3, page_size=25):
+        """Yield leads from /v1.0/leads in default order (createTime DESC),
+        using scrollId pagination to walk multiple pages.
+
+        Why this exists: /v1.0/leads silently ignores keyword, page,
+        sortField, and sortDirection (quirks #2 and #29). scrollId is
+        the only working pagination mechanism. Default sort is newest
+        first, which is exactly what the new-contact fallback in
+        find_client needs.
+
+        Args:
+            max_pages: How many pages to walk before stopping.
+            page_size: Page size hint. Hard-capped at 25 by the API.
+
+        Yields:
+            Raw lead dicts from the API response.
+        """
+        scroll_id = None
+        for _ in range(max_pages):
+            params = {"pageSize": page_size}
+            if scroll_id:
+                params["scrollId"] = scroll_id
+            resp = self._request("GET", "/v1.0/leads", query_params=params)
+            leads = resp.get("leads", []) if isinstance(resp, dict) else []
+            if not leads:
+                break
+            for l in leads:
+                yield l
+            scroll_id = (resp.get("_metadata") or {}).get("scrollId")
+            if not scroll_id:
+                break
 
     def get_lead(self, lead_id):
         """Get full details for a single lead. Auto-unwraps the {"lead": {...}} envelope."""
@@ -907,16 +942,41 @@ class LoftyAPI:
 
         return data
 
-    def find_client(self, name, exclude_stages=None):
-        """Search leads by name using the local leads index.
+    def find_client(self, name, exclude_stages=None, fallback_pages=3):
+        """Search leads by name. Reads the local index first, then falls
+        back to scanning the most recently created leads via the API.
+
+        The fallback handles the new-contact case: when you create a
+        lead in Lofty and immediately ask Claude to find them, the
+        index has not synced yet (the leads-index Worker has a 1-5
+        minute webhook delivery SLA, and the file fallback is only as
+        fresh as the last refresh_leads_index.py run). The API's
+        default sort is newest first (quirk #29), so a newly created
+        contact is always at the top of page 1.
 
         Returns one of:
-            {"match": <slim_lead>}      single match
-            {"candidates": [<slim>, ...]}  multiple matches
-            {"none": True}              no match
+            {"match": <slim_lead>, "source": "index" | "api"}
+            {"candidates": [<slim>, ...], "source": "index" | "api"}
+            {"none": True, "source": "index+api", "scanned": int}
 
-        exclude_stages defaults to ["DNC", "Archived", "Agents / Vendors"].
-        OWNER_LAST_NAME_LOWER (from .env) is also excluded if set, so the
+        The "source" key is additive. Existing callers that read
+        result["match"] / result["candidates"] / result["none"] keep
+        working unchanged.
+
+        Args:
+            name: Substring to match on first/last/full name
+                  (case-insensitive).
+            exclude_stages: Stages to skip. Defaults to
+                            ["DNC", "Archived", "Agents / Vendors"].
+            fallback_pages: How many pages of /v1.0/leads (sorted by
+                            newest first) to scan when the index
+                            misses. 0 disables the fallback (matches
+                            pre-v1.4.1 behavior). Default 3 covers the
+                            most recent ~75 leads, which is enough for
+                            "I just created this contact" without
+                            spending too long at the rate limit.
+
+        OWNER_LAST_NAME_LOWER (from .env) is excluded if set, so the
         agent's own record never bubbles up in name searches.
 
         Requires the leads index. Raises RuntimeError with setup
@@ -927,13 +987,14 @@ class LoftyAPI:
 
         name_lower = name.strip().lower()
         if not name_lower:
-            return {"none": True}
+            return {"none": True, "source": "index", "scanned": 0}
 
         owner_last = self._owner_profile()["last_name_lower"]
         index = self._load_leads_index()
         leads = index.get("leads", [])
 
         matches = []
+        seen_ids = set()
         for l in leads:
             if l.get("stage") in exclude_stages:
                 continue
@@ -954,12 +1015,52 @@ class LoftyAPI:
                     "stage": l.get("stage", ""),
                     "score": l.get("score"),
                 })
+                if l.get("leadId") is not None:
+                    seen_ids.add(l.get("leadId"))
 
         if len(matches) == 1:
-            return {"match": matches[0]}
+            return {"match": matches[0], "source": "index"}
         if len(matches) > 1:
-            return {"candidates": matches}
-        return {"none": True}
+            return {"candidates": matches, "source": "index"}
+
+        # Index missed. If the caller disabled the fallback, return now.
+        if fallback_pages <= 0:
+            return {"none": True, "source": "index", "scanned": 0}
+
+        # Walk the most recently created leads via the API. New contacts
+        # land at the top of page 1 because of the default sort.
+        api_matches = []
+        scanned = 0
+        for raw in self._search_recent_leads(max_pages=fallback_pages):
+            scanned += 1
+            if raw.get("stage") in exclude_stages:
+                continue
+            first_lower = (raw.get("firstName") or "").strip().lower()
+            last_lower = (raw.get("lastName") or "").strip().lower()
+            full_lower = (first_lower + " " + last_lower).strip()
+            if owner_last and last_lower == owner_last:
+                continue
+            if (name_lower in full_lower
+                    or (first_lower and name_lower in first_lower)
+                    or (last_lower and name_lower in last_lower)):
+                lead_id = raw.get("leadId")
+                if lead_id in seen_ids:
+                    continue
+                api_matches.append({
+                    "leadId": lead_id,
+                    "firstName": raw.get("firstName"),
+                    "lastName": raw.get("lastName"),
+                    "email": (raw.get("emails") or [""])[0],
+                    "phone": (raw.get("phones") or [""])[0],
+                    "stage": raw.get("stage", ""),
+                    "score": raw.get("score"),
+                })
+
+        if len(api_matches) == 1:
+            return {"match": api_matches[0], "source": "api"}
+        if len(api_matches) > 1:
+            return {"candidates": api_matches, "source": "api"}
+        return {"none": True, "source": "index+api", "scanned": scanned}
 
     def _client_dict_from_index(self, lead_id):
         """Return the slim client dict for a single lead_id.
