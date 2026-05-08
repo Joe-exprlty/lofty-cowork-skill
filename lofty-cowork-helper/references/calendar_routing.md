@@ -57,7 +57,7 @@ Plan: same conceptual flow as Google. The M365 connector drafts an Outlook appoi
 
 If the connector isn't installed, the skill should refuse to set `CALENDAR_PROVIDER=outlook` and ask the agent to install it first or pick a different provider.
 
-Until validated end-to-end, treat this provider as "report bugs to Joe."
+Until validated end-to-end, treat this provider as beta and verify behavior in your own account before relying on it for client-facing work.
 
 ---
 

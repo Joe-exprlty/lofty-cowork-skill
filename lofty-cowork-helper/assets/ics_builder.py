@@ -16,14 +16,14 @@ Usage:
     from ics_builder import build_ics
 
     ics_text = build_ics(
-        uid="showing-12345-1717180800@sellingpdxhomes.com",
+        uid="showing-12345-1717180800@example.com",
         summary="Showing: 1234 Main St",
-        description="3 bed / 2 bath in Portland. See you there.",
-        location="1234 Main St, Portland, OR 97214",
+        description="3 bed / 2 bath. See you there.",
+        location="1234 Main St, Anytown, ST 12345",
         start_iso="2026-05-15T14:00:00-07:00",
         end_iso="2026-05-15T14:30:00-07:00",
-        organizer_name="Joe Saling",
-        organizer_email="joe@sellingpdxhomes.com",
+        organizer_name="<Your Name>",
+        organizer_email="<your-email>",
         attendee_name="Jane Buyer",
         attendee_email="jane@example.com",
     )
@@ -136,7 +136,7 @@ def build_ics(
     organizer_email: str,
     attendee_name: Optional[str] = None,
     attendee_email: Optional[str] = None,
-    prodid: str = "-//Saling Homes//Lofty Cowork Helper//EN",
+    prodid: str = "-//Lofty Cowork Helper//EN",
 ) -> str:
     """Build a single-event iCalendar string suitable for emailing the buyer.
 
@@ -212,19 +212,19 @@ def build_ics(
 def _smoke_test():
     """Print a sample .ics string and run a few sanity checks."""
     sample = build_ics(
-        uid="showing-12345-1717180800@sellingpdxhomes.com",
+        uid="showing-12345-1717180800@example.com",
         summary="Showing: 1234 Main St with Jane Buyer",
         description=(
             "3 bed / 2 bath, 1850 sqft. Listed at $625,000.\n"
             "Park on the street. Lockbox on the front door.\n"
-            "After the showing, expect a quick feedback text from Joe.\n"
-            "- Joe Saling, Saling Homes at eXp Realty, 503-910-7364"
+            "After the showing, expect a quick feedback text from your agent.\n"
+            "- <Your Name>, <Your Brokerage>, <your-phone>"
         ),
-        location="1234 Main St, Portland, OR 97214",
+        location="1234 Main St, Anytown, ST 12345",
         start_iso="2026-05-15T14:00:00-07:00",
         end_iso="2026-05-15T14:30:00-07:00",
-        organizer_name="Joe Saling",
-        organizer_email="joe@sellingpdxhomes.com",
+        organizer_name="Agent Example",
+        organizer_email="agent@example.com",
         attendee_name="Jane Buyer",
         attendee_email="jane@example.com",
     )
@@ -236,10 +236,8 @@ def _smoke_test():
     assert "DTSTART:20260515T210000Z" in sample, \
         "Pacific 14:00 -07:00 should convert to 21:00 UTC"
     assert "DTEND:20260515T213000Z" in sample
-    assert "ORGANIZER" in sample and "mailto:joe@sellingpdxhomes.com" in sample
+    assert "ORGANIZER" in sample and "mailto:agent@example.com" in sample
     assert "ATTENDEE" in sample and "mailto:jane@example.com" in sample
-    assert "Saling Homes\\, " not in sample, \
-        "PRODID does not contain a comma so it should not be escaped"
     print("---")
     print("All smoke-test assertions passed.")
 

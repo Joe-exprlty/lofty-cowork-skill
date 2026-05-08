@@ -2,12 +2,13 @@
 
 This file gets a new Claude Cowork session up to speed on the **Phase 2** build of the Lofty + Cowork skill project. Read this first, then explore the current files before doing anything.
 
-**Status as of May 7, 2026 (late evening):**
+**Status as of May 8, 2026:**
 
-- v1.2.0 is built locally (`lofty-cowork-helper.skill`, ~50 KB at the kit root). Phase 1.5 done. Four new methods (`search_listings`, `create_task`, `send_email`, `send_sms`) verified live against Joe's real Lofty.
-- Phase 2 design has been REVISED. Earlier in the same session I designed a calendar adapter pattern, an .ics builder, and a question pack from scratch. Then Joe granted access to his production `saling-automation` repo and most of those designs were either wrong-shape or overkill compared to what's already running in production.
-- Stage A1 (revising `post_showing_questions.yaml` to match the real D1 schema) is done. Stages A2 through A5 are next.
-- v1.2.0 has NOT been pushed to GitHub or tagged yet.
+- **v1.4.0 is built locally** (`lofty-cowork-helper.skill`, ~88 KB at the kit root). Phase 2 Stage A complete.
+- v1.2.0, v1.3.0, and v1.4.0 are all in the working tree. CHANGELOG.md treats them as separate logical releases. NOT yet pushed to GitHub. Last tag on origin/main is `v1.1.0`. Recommended path is one combined commit + a single `v1.4.0` tag, since separating the working tree into three clean commits is impractical at this point.
+- Phase 2 Stage A is COMPLETE: showing primitives ported, leads index, post-showing question pack, full read-coverage of the API surface, Content-Type bug fix that unblocks all DELETEs in the client.
+- Phase 2 Stage B (the four Cloudflare Workers + D1 migration + setup runbook) NOT started.
+- Phase 2 Stage C (`schedule-showing` orchestration sub-skill, Phase 2 onboarding in Easy Mode) NOT started.
 
 If you're a new Claude session: do NOT redesign Phase 2 from first principles. The reference implementation is `~/Code/saling-automation/`. Phase 2 of the public skill is a port + strip + parameterize, not a fresh design.
 
@@ -59,31 +60,34 @@ The QUESTION CONTENT in the post-showing form (the actual prompt wording, the cu
 
 ---
 
-## Where Phase 1 ended (May 7, 2026, v1.2.0 - SHIPPED LOCALLY, NOT YET PUSHED)
+## What v1.4.0 ships (current state, May 8, 2026 - SHIPPED LOCALLY, NOT YET PUSHED)
 
-v1.2.0 is built, polished, and ready. Working tree has uncommitted changes from the Phase 2 design exploration. Whether to commit those before tagging is a judgment call, see "Outstanding decisions" below.
+v1.4.0 is built, polished, and verified live. The kit is at the kit root as `lofty-cowork-helper.skill` (~88 KB). The CHANGELOG documents v1.2.0, v1.3.0, and v1.4.0 as separate logical releases.
 
-What v1.2.0 ships (Phase 1.5):
+What v1.4.0 ships (Phase 2 Stage A complete):
 
-- Easy Mode setup as the default (plain English, Claude does technical work)
-- Power User Mode opt-in via "I'm technical" or "skip ahead"
+- Easy Mode + Power User Mode setup (Phase 1.5)
 - Branded web page at `docs/index.html`
-- INSTALL.md is a 50-line stub pointing at the web page
-- README.md has a data handling disclosure
-- SKILL.md is tightened so Claude no longer reads the `.env` back to validate the key
+- 22 new methods plus the showing primitives (full read coverage of the Lofty REST surface)
+- Content-Type fix in `_request` that unblocks every DELETE in the client (resolves a silent bug that affected production too)
+- Leads index (file or Worker fallback) with rich normalizer (36 fields including buyer/seller intent, DNC flags, lead's `leadPropertyList`)
+- Showing primitives: `prepare_showing`, `find_listing_by_address`, `cancel_showing`, `list_pending_showings`, `get_buyer_preferences`, plus sub-helpers
+- Unified timeline read via `get_system_logs`, plus per-channel comm history (`get_call_history`, `get_email_history`, `get_text_history`)
+- Schema introspection: `get_custom_fields`, `get_lead_ponds`, `get_organization`, `get_members`
+- Task lifecycle: `get_tasks`, `update_task`, `complete_task`, `uncomplete_task`, `delete_task`, `get_available_meeting_slots`
+- Note lifecycle: `update_note`, `delete_note`
+- Webhook lifecycle: `create_webhook`, `delete_webhook`
+- 28 documented quirks (the original 14 plus 14 added across v1.2-v1.4)
 - All forbidden em-dash characters removed
-- Four new methods in `lofty_api.py`: `search_listings`, `create_task`, `send_email`, `send_sms`. All four verified live.
-- Three new quirks documented (#15 listings body keys, #16 listing-singular response, #17 calendar create body keys).
-- Body shapes in references/extending.md, full-guide.md, workflows.md corrected from the aspirational shapes (which would have failed the same way mine did) to the actual working shapes from `saling-automation`.
+- All known Joe-specifics scrubbed from files that ship in the bundle (verified May 8, 2026)
 
-What v1.2.0 does NOT ship (Phase 2 territory):
+What v1.4.0 does NOT ship (Phase 2 Stages B and C):
 
-- Showing scheduling end-to-end (`prepare_showing` and friends)
-- Leads index (file or Worker)
-- Post-showing feedback flow
-- Pre-showing 2-hour confirmation SMS
-- Branded short links
-- Buyer preferences aggregation
+- The four Cloudflare Workers themselves (Stage B, target v1.5.0): `leads-index`, `short-links`, `jotform-to-lofty`, `showing-sms`
+- D1 migration SQL
+- Workers setup runbook with Cloudflare MCP shortcuts
+- The `schedule-showing` orchestration sub-skill (Stage C, target v1.6.0)
+- Phase 2 onboarding step in Easy Mode setup (Stage C)
 
 ---
 
@@ -108,19 +112,23 @@ Stage A: extend `lofty_api.py` with the showing primitives. (Largest pure-Python
 Stage B: bundle the four Workers as a configurable, deployable kit. (Worker source + wrangler configs + deploy runbook with Cloudflare MCP shortcuts.)
 Stage C: orchestration. Port the `schedule-showing` skill and add Phase 2 onboarding to the Easy Mode setup.
 
-Each stage is shippable on its own. Targeting v1.3.0 for Stage A complete, v1.4.0 for Stage B complete, v1.5.0 for full Phase 2.
+Each stage is shippable on its own. Stage A done at v1.3.0; v1.4.0 added the API surface expansion on top. Stage B targets v1.5.0; Stage C targets v1.6.0; full Phase 2 ships at v1.6.0.
 
-### Stage A status
+### Stage A status: COMPLETE (v1.3.0 + v1.4.0)
 
-A1 ~~Revise `post_showing_questions.yaml` to match D1 schema.~~ DONE. The pack now has 6 rating_1_5 (first reaction, daily life fit, neighborhood, condition, value, shortlist), 2 long_text (standout, memory notes), 2 multi_select tag arrays (loved, dealbreakers), each `purpose` mapped 1:1 to a `showing_feedback` D1 column. Joe's "intentionally_excluded: Flood zone" wisdom annotation is preserved.
+A1 ~~Revise `post_showing_questions.yaml` to match D1 schema.~~ DONE.
+A2 ~~Read `saling-automation/scripts/lofty_api.py` end-to-end.~~ DONE.
+A3 ~~Port `prepare_showing` and the rest of the showing primitives.~~ DONE.
+A4 ~~Add CLI handlers and write smoke runner at `scripts/test_v1_3_methods.py`.~~ DONE.
+A5 ~~Update CHANGELOG to v1.3.0, repackage .skill.~~ DONE.
 
-A2 Read `saling-automation/scripts/lofty_api.py` end-to-end. (~900 lines. Use offset/limit because Read has a token cap. Focus on `prepare_showing` and its sub-helpers, the leads-index reader, `find_listing_by_address`, `cancel_showing`. Skip stuff already ported in v1.2.0 like `create_task` and `send_email`.)
-
-A3 Port `prepare_showing` and the rest of the showing primitives into the public `lofty-cowork-helper/assets/lofty_api.py`, with all Joe-specifics replaced by `<placeholder>` style values that the recipient sets in their `.env` (`SHORT_LINKS_WORKER_URL`, `SHOWING_SMS_WORKER_URL`, `JOTFORM_FORM_ID`, `LOFTY_PREFERENCES_API_KEY`, `LEADS_INDEX_WORKER_URL`, `LEADS_INDEX_EXPORT_API_KEY`, etc.). Write a parameter table at the top of the module so recipients know what to set.
-
-A4 Add CLI handlers (`prepare-showing <args>`, `find-listing <full_address>`, `cancel-showing <leadId> <full_address>`, `list-pending-showings <leadId>`). Write a smoke runner at `scripts/test_v1_3_methods.py` that exercises against Joe's real Lofty using HIS `.env` from `~/Code/saling-automation/.env` via the `set -a; source ...; set +a` pattern from the v1.2.0 test runner.
-
-A5 Update CHANGELOG to v1.3.0, repackage the .skill, update HANDOFF to mark Stage A done.
+Stage A bonus work in v1.4.0 (added based on deep API research probing Joe's real Lofty on May 7, 2026):
+- Discovered and fixed the Content-Type bug affecting all DELETE methods. Production has the same bug; Joe should patch his too.
+- Found 8 new quirks; documented as #21-#28 in `references/quirks.md`. Quirk #6 marked obsolete in place.
+- Ported 22 additional production methods: communication history reads, transactions, alerts, system logs (the unified human-readable timeline), task lifecycle, note lifecycle, webhook lifecycle, schema introspection.
+- Expanded `refresh_leads_index.py::_normalize` from 17 to 36 fields to capture buyer/seller intent, DNC flags, `leadPropertyList`, etc.
+- Confirmed that Lofty's REST API is much narrower than the UI suggests: 12 targeted 404s on guesses (stages, sources, segments, saved searches, drip campaigns, sequences, email templates, native showings, feedbacks). This negative data justifies the Phase 2 Workers+JotForm+D1 architecture and is documented in `RESEARCH_NOTES_2026-05-07.md` at the kit root.
+- The deep-research notes file is local-only (not tracked in the repo by default). Joe can decide whether to commit it.
 
 ### Stage B status (not started)
 
@@ -219,13 +227,18 @@ These details belong in HANDOFF.md and `docs/index.html` ONLY. Not in the public
 
 ## What to do first when picking this up (recommended order)
 
+Stage A is complete. The next session is picking up at Stage B (porting the four Cloudflare Workers).
+
 1. Read this HANDOFF.md (you're doing it now).
-2. Verify `~/Code/saling-automation/` is mounted via `mcp__cowork__request_cowork_directory`. If not, request it. This is the production reference; you cannot safely proceed without it.
-3. Read `CHANGELOG.md` and confirm v1.2.0 is the latest entry.
-4. Read `lofty-cowork-helper/SKILL.md`, focusing on the workflow section that mentions the new Phase 2 capabilities. Confirm the calendar router is demoted to "future" and that Google Calendar is the default.
-5. Read `lofty-cowork-helper/assets/post_showing_questions.yaml` to confirm Stage A1 looks right.
-6. Ask Joe one question: "Ready to push into Stage A2 (read your full lofty_api.py and start the port)?" Wait for his answer before doing more.
-7. When Stage A2 begins: read `~/Code/saling-automation/scripts/lofty_api.py` strategically (it's ~900 lines, Read has a token cap, so use offset/limit). Focus on `prepare_showing`, `find_listing_by_address`, `find_client`, `build_jotform_url`, `shorten_url`, `enqueue_showing_sms`, `list_pending_showings`, `cancel_showing`, `get_buyer_preferences`, the leads-index reader. SKIP the methods already ported in v1.2.0 (`search_listings`, `create_task`, `send_email`, `send_sms`).
-8. When porting in Stage A3: every URL, every brand string, every personal identifier becomes a placeholder. Read URLs from `.env`. Document the env-var contract at the top of `lofty_api.py`.
+2. Verify `~/Code/saling-automation/` is mounted via `mcp__cowork__request_cowork_directory`. If not, request it. The production reference is required for the Worker port.
+3. Read `CHANGELOG.md` and confirm v1.4.0 is the latest entry.
+4. Confirm whether Joe has pushed v1.4.0 to GitHub yet:
+   - Run `git log --oneline -5` and `git tag --list` against the kit repo.
+   - If `v1.4.0` is NOT in the tag list, the working tree is still pre-release. Don't start Stage B until Joe ships v1.4.0; mixing pre-release working-tree changes with new Stage B work creates a tangled commit history.
+   - If `v1.4.0` IS tagged, you're clear to start Stage B from a clean main.
+5. Read `RESEARCH_NOTES_2026-05-07.md` at the kit root for the API surface map and the architectural justification of the Phase 2 Workers.
+6. Read the four Worker source files in `saling-automation/worker/` end-to-end before designing anything: `leads_index_worker.js`, `short_links_worker.js`, `jotform_to_lofty_worker.js`, `showing_sms_worker.js`. Plus `worker/migrations/001_showing_feedback.sql` and the two wrangler configs (`wrangler.toml`, `wrangler.jotform.toml`).
+7. Ask Joe one question: "Ready to push into Stage B1 (read all four Workers and plan the port)?" Wait for his answer before doing more.
+8. When Stage B porting begins (B2 onwards): every Worker URL, every account ID, every secret name becomes a placeholder or pulled from env. The Cloudflare account ID `22c50f7ac3f85d789dfec570642ae9af` and the `joe-2c5.workers.dev` subdomain MUST NOT appear in the public kit. Use the Cloudflare MCP for read-only inspection during development; reserve `wrangler` for actual deploys.
 
 Do NOT delete this HANDOFF.md until Phase 2 is finished and shipped. Joe wants it kept as the working brief.

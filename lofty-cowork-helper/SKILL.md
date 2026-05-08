@@ -190,7 +190,7 @@ For each workflow below, the full recipe (with edge cases) lives in `references/
 - **Put an event on the agent's calendar.** Read `CALENDAR_PROVIDER` from `CLAUDE.md` and route to the right backend (Google Calendar MCP, Microsoft 365 connector, Lofty's calendar via `api.create_task`, or skip). Full routing rules in `references/calendar_routing.md`. Always also write the Lofty showing-log note via `api.create_note` regardless of which provider is chosen.
 - **Build a buyer-facing .ics invite.** When `CALENDAR_PROVIDER` is `lofty` or `skip`, the chosen calendar can't email the buyer. Use `assets/ics_builder.py` (`build_ics(...)`) to generate an iCalendar string and send it through `api.send_email` so the buyer can drop the showing into their own calendar. Skip this step on the `google` and `outlook` paths because their native attendee-invite already emails the buyer; sending an .ics on top would duplicate.
 - **Send email.** `api.send_email(lead_id, subject, content)`. ALWAYS draft the subject and body, show them to the user, and get explicit confirmation before calling. The Python wrapper does not gate the send. This is non-negotiable.
-- **Send SMS.** `api.send_sms(lead_id, content)`. Same rule: draft, confirm, then send. Keep texts short. Sign with the agent's first name only ("Joe" not "Joe Saling, Saling Homes at eXp Realty").
+- **Send SMS.** `api.send_sms(lead_id, content)`. Same rule: draft, confirm, then send. Keep texts short. Sign with the agent's first name only (e.g. "Jane", not "Jane Smith, Acme Realty").
 
 ---
 

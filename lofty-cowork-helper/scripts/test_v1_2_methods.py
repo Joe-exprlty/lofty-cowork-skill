@@ -128,7 +128,7 @@ def main():
     section("4. send_sms: tiny test SMS to your own lead")
     sms = api.send_sms(
         lead_id=lead_id,
-        content="v1.2.0 smoke test of send_sms. Safe to ignore. -Joe",
+        content="v1.2.0 smoke test of send_sms. Safe to ignore.",
     )
     if isinstance(sms, dict) and sms.get("error"):
         print("FAILED:", sms)
