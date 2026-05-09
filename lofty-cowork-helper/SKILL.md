@@ -1,6 +1,6 @@
 ---
 name: lofty-cowork-helper
-description: Connect Claude to the Lofty CRM API and operate it day to day for real estate agents and VAs. Use this skill whenever the user mentions Lofty, Lofty CRM, Lofty API, connecting Cowork to Lofty, finding a lead in Lofty, logging a Lofty note, scheduling a showing, post-showing SMS, leads index, jotform feedback, error 200058, Lofty webhooks, or any Lofty automation task. Trigger on first-time setup phrases like "set up Lofty," "connect my CRM," "I just installed this," and on workflow questions like "how do I find a lead," "log a showing," "log a note for," "search the MLS," "schedule a showing for." Trigger on troubleshooting phrases like "Lofty error," "200058," "auth failed," "this Lofty call returned." Trigger even when the user mentions Lofty casually or in passing, such as "the Lofty thing," "my CRM is Lofty," or "in Lofty." Do NOT trigger for general real estate questions that have nothing to do with the Lofty API or Lofty CRM.
+description: Connect Claude to the Lofty CRM API and operate it day to day for real estate agents and VAs. Use this skill whenever the user mentions Lofty, Lofty CRM, Lofty API, connecting Cowork to Lofty, finding a lead in Lofty, logging a Lofty note, scheduling a showing, post-showing SMS, leads index, jotform feedback, error 200058, Lofty webhooks, or any Lofty automation task. Trigger on first-time setup phrases like "set up Lofty," "connect my CRM," "I just installed this." Trigger on Tier 2 deploy phrases like "set up Tier 2," "set up post-showing feedback," "deploy the Worker," "deploy the post-showing feedback Worker," "set up the JotForm Worker," and "wire up the showing feedback form." Trigger on workflow questions like "how do I find a lead," "log a showing," "log a note for," "search the MLS," "schedule a showing for." Trigger on troubleshooting phrases like "Lofty error," "200058," "auth failed," "this Lofty call returned." Trigger even when the user mentions Lofty casually or in passing, such as "the Lofty thing," "my CRM is Lofty," or "in Lofty." Do NOT trigger for general real estate questions that have nothing to do with the Lofty API or Lofty CRM.
 ---
 
 # Lofty CRM Helper for Claude Cowork
@@ -14,6 +14,7 @@ When the skill activates, decide which path the user is on:
 - **No `.env` file in their workspace** → first-time setup. Run **Easy Mode** (the default).
 - **`.env` exists but no successful test connection yet** → finish setup. Run the connection test, report result.
 - **A specific Lofty task in mind** ("find a lead," "log a note," "schedule a showing") → use the "Common workflows" section, which points at `references/workflows.md` for full recipes.
+- **A Tier 2 deploy in mind** ("set up Tier 2," "deploy the Worker," "set up post-showing feedback") → jump to "Tier 2 setup: post-showing feedback Worker" below.
 - **An error or unexpected behavior** → use "When something behaves unexpectedly" below, which points at `references/quirks.md` and the troubleshooting decision tree in `references/full-guide.md`.
 
 If the user mentions Lofty in passing without a clear task, ask one short clarifying question: "Are you setting up Lofty for the first time, or is there a specific task you want help with?"
@@ -178,6 +179,60 @@ Use this only if the user explicitly says they're technical or asks for the fast
 
 ---
 
+## Tier 2 setup: post-showing feedback Worker
+
+Trigger this section when the user says any of:
+
+- "set up Tier 2"
+- "set up post-showing feedback"
+- "deploy the Worker"
+- "deploy the post-showing feedback Worker"
+- "set up the JotForm Worker" or "set up the Jotform Worker"
+- "wire up the showing feedback form"
+- any close paraphrase referencing Tier 2, the post-showing feedback flow, the JotForm Worker, or the D1 database for showings
+
+Tier 2 stands up one Cloudflare Worker (`jotform-to-lofty`), one D1 database (`showing_feedback`), and a Jotform form pointed at the Worker. Free Cloudflare tier covers it. The full deploy runbook lives in `references/workers_setup.md`. This section just routes the user to the right walkthrough in that file.
+
+### Step 1: Confirm prereqs (silent)
+
+Before picking a mode, check:
+
+- `.env` has `LOFTY_API_KEY` (Tier 1 finished). If not, route them to the Easy Mode setup above first.
+- `.env` has `CLOUDFLARE_API_TOKEN`. If missing, walk them through `dash.cloudflare.com/profile/api-tokens` using the "Edit Cloudflare Workers" template, paste the token, save the file. Wait for confirmation.
+- `wrangler --version` returns a version. If missing, run `npm install -g wrangler`.
+- The user has a Jotform account. If not, point them at `jotform.com` (free tier is fine), wait, then continue.
+- Cloudflare MCP and Jotform MCP both connected. Easy Mode requires both. If either is missing and the user does not want to install it, route to Power User Mode.
+
+### Step 2: Ask which mode
+
+Use the AskUserQuestion tool. Two options:
+
+- **Easy Mode (recommended).** Claude builds the Jotform form via MCP, creates and migrates D1 via Cloudflare MCP, fills `wrangler.jotform.toml`, generates `PREFERENCES_API_KEY` silently, pushes secrets, deploys the Worker, wires the Jotform webhook, and runs the smoke test. About 5 minutes. The user only answers two questions: brand colors and an optional logo, plus whether they want Resend.
+- **Power User Mode.** The user runs the shell commands and clicks the Jotform UI themselves. About 15 minutes. Useful for users who want to see exactly what is happening or who do not want the MCPs. Claude stays engaged and answers questions inline.
+
+If neither MCP is connected and the user does not want to install them, default to Power User Mode without asking.
+
+### Step 3: Run the chosen path
+
+- **Easy Mode:** follow steps 1 through 12 of the "Easy Mode walkthrough" in `references/workers_setup.md` verbatim. Step 2 of that walkthrough is the branding step (locked: do not skip). Ask for primary text color, accent color, and an optional logo URL even if the user says "I don't care, just go." The defaults (black text, gold accent, no logo) are fine if they accept them; the form must still get a coherent look. After step 12, hand off in one line: "Tier 2 is live. Submissions will land on the lead's timeline as a Lofty note and in D1."
+- **Power User Mode:** point the user at the "Power User Mode walkthrough" section of `references/workers_setup.md`. As they work through each numbered step, surface the relevant snippet, answer their questions inline, and read back any error output to diagnose. Don't run their commands for them; they picked Power User Mode so they could drive.
+
+### When something fails
+
+1. Report the exact error in plain English.
+2. Match it against the "Common errors" table in `references/workers_setup.md`.
+3. Offer to roll back the partial deploy using the "Roll back" section. ONLY roll back with explicit user consent.
+4. If after two attempts the same step still fails, stop and surface `github.com/Joe-exprlty/lofty-cowork-skill`.
+
+### After a successful deploy
+
+- Add `JOTFORM_WORKER_URL=<deployed-url>` to `.env` so `api.get_buyer_preferences(lead_id)` works from Python.
+- Confirm `LOFTY_PREFERENCES_API_KEY` is in `.env` (Easy Mode step 7, Power User step 6).
+- Tell the user what they just unlocked: `api.get_buyer_preferences(lead_id)` from Python, the optional buyer profile Cowork artifact, and the per-buyer trend section that appears in recap emails after 3+ submissions from the same lead.
+- Tier 3 (the showing-reminder SMS Worker) is a separate v1.6 deploy that requires Cloudflare Workers Paid ($5/mo). Don't bundle it with Tier 2.
+
+---
+
 ## Common workflows
 
 For each workflow below, the full recipe (with edge cases) lives in `references/workflows.md`. Read that file before executing if you are unsure of any step.
@@ -243,7 +298,8 @@ The v1.2.0 starter covers leads, notes, activities, MLS search, tasks, email, an
 
 - Adding showing scheduling helpers (`prepare_showing`, `find_listing_by_address`)
 - Building a leads index for real name search across the full CRM
-- Deploying Cloudflare Workers (leads-index, short-links, jotform-to-lofty, showing-sms)
+- Deploying the post-showing feedback Worker (`jotform-to-lofty` + D1) - see "Tier 2 setup: post-showing feedback Worker" above for the full picker; `references/workers_setup.md` has the deploy walkthrough
+- Other Cloudflare Workers (leads-index, short-links, showing-sms) ship in v1.6 and v1.7
 - Subscribing to webhooks for live updates
 
 Each addition has a pattern in the full guide. Use the same `_request` plumbing the starter client provides; do not reinvent it.
@@ -263,11 +319,18 @@ Each addition has a pattern in the full guide. Use the same `_request` plumbing 
 - `assets/lofty_api.py` - the starter Python client to install in the user's workspace
 - `assets/env-template` - settings file template
 - `assets/CLAUDE.md.template` - Cowork context file template (gets customized in step 7 of Easy Mode)
+- `assets/ics_builder.py` - buyer-facing .ics generator for the lofty and skip calendar paths
+- `assets/post_showing_questions.yaml` - the recommended question pack the agent forks at setup; drives the post-showing JotForm and the lead-update mapping
+- `assets/jotform_form_template.md` - read at runtime by Easy Mode Tier 2 setup; the natural-language `create_form` prompt and `JOTFORM_FIELD_MAP` build procedure
 - `scripts/setup_check.py` - quick sanity check script for advanced users
+- `scripts/refresh_leads_index.py` - rebuild `data/leads_index.json` for the file-fallback lead lookup
+- `scripts/test_worker_parsers.mjs` - smoke test for the Tier 2 Worker's submission parser; run with `node scripts/test_worker_parsers.mjs`
+- `workers/jotform_to_lofty_worker.js` - the Tier 2 Worker source; deploys to Cloudflare via wrangler
+- `workers/wrangler.jotform.toml` - wrangler config template for the Tier 2 Worker (placeholders get filled in at deploy time)
+- `workers/migrations/001_showing_feedback.sql` - D1 schema for the `showing_feedback` table; idempotent
 - `references/full-guide.md` - comprehensive setup, learning, and best practices guide
 - `references/quirks.md` - full quirks list with workarounds
 - `references/workflows.md` - step-by-step recipes for common tasks
 - `references/extending.md` - how to add capability beyond the starter
 - `references/calendar_routing.md` - which calendar provider to call based on the agent's setup choice
-- `assets/ics_builder.py` - buyer-facing .ics generator for the lofty and skip calendar paths
-- `assets/post_showing_questions.yaml` - the recommended question pack the agent forks at setup; drives the post-showing JotForm and the lead-update mapping
+- `references/workers_setup.md` - Tier 2 deploy runbook with Easy Mode and Power User Mode walkthroughs
