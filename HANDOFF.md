@@ -4,13 +4,12 @@ This file gets a new Claude Cowork session up to speed on the **Phase 2** build 
 
 **Status as of May 8, 2026:**
 
-- **v1.4.0 is built locally** (`lofty-cowork-helper.skill`, ~88 KB at the kit root). Phase 2 Stage A complete.
-- v1.2.0, v1.3.0, and v1.4.0 are all in the working tree. CHANGELOG.md treats them as separate logical releases. NOT yet pushed to GitHub. Last tag on origin/main is `v1.1.0`. Recommended path is one combined commit + a single `v1.4.0` tag, since separating the working tree into three clean commits is impractical at this point.
-- Phase 2 Stage A is COMPLETE: showing primitives ported, leads index, post-showing question pack, full read-coverage of the API surface, Content-Type bug fix that unblocks all DELETEs in the client.
-- Phase 2 Stage B (the four Cloudflare Workers + D1 migration + setup runbook) NOT started.
+- **v1.4.1 is shipped to GitHub** (`lofty-cowork-helper.skill`, ~90 KB at the kit root, gitignored). Public skill commit `f027a87` is on origin/main. The matching production patch is on `saling-automation` origin/main (commit `9217d0c`). The `v1.4.1` git tag was NOT created on the public repo (commit landed via GitHub Desktop without the tag step). If Joe wants tagged-release parity with v1.4.0, tag commit `f027a87` as `v1.4.1` and push tags. Otherwise the working tree is clean.
+- Phase 2 Stage A is COMPLETE through v1.4.1: showing primitives ported, leads index, post-showing question pack, full read-coverage of the API surface, Content-Type bug fix, and the v1.4.1 find_client fallback that closes the new-contact gap (live API scan via scrollId pagination when the local index misses).
+- Phase 2 Stage B (the Cloudflare Workers) NOT started, AND has been re-sliced into tiers (see "Phase 2 LOCKED DECISIONS" and "Tier 2 (v1.5) plan" below). The handoff's original "all four Workers in v1.5" plan is OBSOLETE.
 - Phase 2 Stage C (`schedule-showing` orchestration sub-skill, Phase 2 onboarding in Easy Mode) NOT started.
 
-If you're a new Claude session: do NOT redesign Phase 2 from first principles. The reference implementation is `~/Code/saling-automation/`. Phase 2 of the public skill is a port + strip + parameterize, not a fresh design.
+If you're a new Claude session: do NOT redesign Phase 2 from first principles. The reference implementation is `~/Code/saling-automation/`. Phase 2 of the public skill is a port + strip + parameterize, not a fresh design. The TIERING decision (below) shapes WHICH pieces port and in what order; it does not change the underlying architecture.
 
 ---
 
@@ -60,11 +59,11 @@ The QUESTION CONTENT in the post-showing form (the actual prompt wording, the cu
 
 ---
 
-## What v1.4.0 ships (current state, May 8, 2026 - SHIPPED LOCALLY, NOT YET PUSHED)
+## What v1.4.x ships (current state, May 8, 2026 - SHIPPED TO GITHUB)
 
-v1.4.0 is built, polished, and verified live. The kit is at the kit root as `lofty-cowork-helper.skill` (~88 KB). The CHANGELOG documents v1.2.0, v1.3.0, and v1.4.0 as separate logical releases.
+v1.4.1 is the latest tagged release path. The kit is at the kit root as `lofty-cowork-helper.skill` (~90 KB, gitignored). The CHANGELOG documents v1.2.0, v1.3.0, v1.4.0, and v1.4.1 as separate logical releases.
 
-What v1.4.0 ships (Phase 2 Stage A complete):
+What v1.4.0 shipped (Phase 2 Stage A complete):
 
 - Easy Mode + Power User Mode setup (Phase 1.5)
 - Branded web page at `docs/index.html`
@@ -81,40 +80,57 @@ What v1.4.0 ships (Phase 2 Stage A complete):
 - All forbidden em-dash characters removed
 - All known Joe-specifics scrubbed from files that ship in the bundle (verified May 8, 2026)
 
-What v1.4.0 does NOT ship (Phase 2 Stages B and C):
+What v1.4.1 added on top of v1.4.0 (focused fix release):
 
-- The four Cloudflare Workers themselves (Stage B, target v1.5.0): `leads-index`, `short-links`, `jotform-to-lofty`, `showing-sms`
-- D1 migration SQL
-- Workers setup runbook with Cloudflare MCP shortcuts
-- The `schedule-showing` orchestration sub-skill (Stage C, target v1.6.0)
-- Phase 2 onboarding step in Easy Mode setup (Stage C)
+- `find_client` fallback to a live `/v1.0/leads` scan when the local index returns no match. Closes the new-contact gap: a contact created in Lofty seconds before the call now lands in `find_client` results without waiting on the leads-index Worker's 1-5 minute webhook delivery SLA. Verified live against a fresh test contact (Robin Hood) on May 8, 2026.
+- `_search_recent_leads(max_pages=3, page_size=25)` helper using scrollId-cursor pagination.
+- New `fallback_pages` parameter on `find_client` (default 3, set to 0 to revert to v1.4.0 behavior).
+- Additive `"source"` key on `find_client` return shape: `"index"`, `"api"`, or `"index+api"`. Backward compatible.
+- Quirk #29: `/v1.0/leads` `page` parameter is silently ignored. scrollId is the only working pagination on that endpoint.
+- Same patch mirrored into `saling-automation/scripts/lofty_api.py` so Joe's daily workflow benefits immediately.
+
+What v1.4.x does NOT yet ship (Phase 2 Stages B and C, now re-sliced into tiers):
+
+- Tier 2: the `jotform-to-lofty` Worker plus D1 migration plus optimized setup runbook (target v1.5.0).
+- Tier 3 SMS: the `showing-sms` Worker with Durable Object alarms (target v1.6.0). Requires Cloudflare Workers Paid plan ($5/mo).
+- Tier 3 polish: the `leads-index` Worker (free tier, optional once the v1.4.1 fallback is in place) and the `short-links` Worker (free tier, may be cut entirely from the public skill, see locked decision #11). Target v1.7.0.
+- The `schedule-showing` orchestration sub-skill (Stage C, target v1.7.0 or later).
+- Phase 2 onboarding step in Easy Mode setup (Stage C).
 
 ---
 
 ## Phase 2 LOCKED DECISIONS
 
-Decided in the May 7 design session, do not revisit without strong reason:
+Decided across the May 7 and May 8 design sessions, do not revisit without strong reason:
 
 1. **Public skill = pure template.** No Joe-specifics anywhere in the kit. Recipients fork, fill in their own values, ship. This is non-negotiable.
-2. **Phase 2 design = port from `saling-automation`, not redesign.** The production architecture works. Strip Joe-specifics, parameterize, add the public-skill's Easy Mode walkthrough on top.
+2. **Phase 2 design = port from `saling-automation`, not redesign.** The production architecture works. Strip Joe-specifics, parameterize, add the public-skill's Easy Mode walkthrough on top. Tiering (decision #9) controls WHICH pieces port and in what order; it does not change the underlying architecture.
 3. **MCPs are the easy path for everyone.** Cloudflare MCP for D1 / KV / Worker inspection. JotForm MCP for form creation, submissions, analysis. Reserve `wrangler` CLI for the parts the MCP can't do (Worker code deploys, secret push). MCP-first is for both setup walkthroughs AND for how WE build the public skill.
-4. **Recap email: optional with Lofty fallback at v1.** Recipient picks at setup. Resend if they want best-in-class deliverability. Lofty `send_email` if they want zero new accounts. Both paths get docs and tests.
-5. **Leads index: Worker preferred, file fallback.** Same as Joe's proven design. Fresh Mac runs file-only until the Worker is deployed; after deploy, set `LOFTY_LEADS_INDEX_SOURCE=worker`.
-6. **Calendar provider: Google Calendar at v1.** The four-provider router I designed (`references/calendar_routing.md`, `assets/ics_builder.py`) is parked as a "future feature for clients who want options." Production uses Google exclusively and that's what ships first. Keep the router files; demote them in SKILL.md to "if you want alternatives."
-7. **Hosting model: self-hosted at v1.** Each agent deploys their own four Workers + D1. Joe-hosted-shared is a possible future "premium tier" service for paying coaching clients but is NOT how the public open-source skill ships. Self-host is the simpler ownership story for v1.
+4. **Recap email: optional with Lofty fallback as the DEFAULT.** Lofty's `send_email` is the recap path on a fresh install. Resend is opt-in for users who want better deliverability. This means a Tier 2 install needs ZERO new accounts beyond Cloudflare and JotForm. Reverses the original plan, locked in the May 8 cost-tier conversation.
+5. **Leads index: file fallback first, Worker optional.** v1.4.1's live-API fallback in `find_client` makes the leads-index Worker much less load-bearing. The file fallback is the default; the Worker is a Tier 3 polish item. This is a softening of the original locked decision and reflects the reality that v1.4.1 closes the new-contact gap without any Worker.
+6. **Calendar provider: Google Calendar at v1.** The four-provider router (`references/calendar_routing.md`, `assets/ics_builder.py`) is parked as a "future feature for clients who want options." Production uses Google exclusively and that is what ships first. Keep the router files; demote them in SKILL.md to "if you want alternatives."
+7. **Hosting model: self-hosted at v1.** Each agent deploys their own Workers + D1. Joe-hosted-shared is a possible future "premium tier" service for paying coaching clients but is NOT how the public open-source skill ships. Self-host is the simpler ownership story for v1.
 8. **Twilio is OUT for v1.** Lofty's SMS is reliable enough for the showing reminders. Twilio adds another account, another set of secrets, another point of failure. Skip until someone needs it.
+9. **Tiered rollout, not "all four Workers in v1.5".** Locked May 8. The public skill ships in three layers: Tier 1 (zero infra, already in v1.4.x), Tier 2 (one Worker plus D1 plus JotForm, target v1.5), Tier 3 (the SMS Worker plus optional polish Workers, target v1.6 and v1.7). Most adopters will land at Tier 2 and never spend a cent on infrastructure. The original "all four Workers in v1.5.0" plan from this handoff is OBSOLETE.
+10. **Workers Paid plan is ONLY for Tier 3 SMS.** $5/mo Cloudflare Workers Paid is required for Durable Objects in the `showing-sms` Worker. Every other Worker (`jotform-to-lofty`, `leads-index`, `short-links`) runs on the Cloudflare free tier. v1.4.1 and v1.5 cost the recipient nothing.
+11. **Short-links Worker is a candidate for cut.** Locked May 8 as "investigate cutting from public skill entirely." The branded short-link feature is a Joe-brand investment; the long Jotform prefill URL works fine in SMS in 2026. If the v1.7 design session confirms the cut, the public skill ships without `short_links_worker.js` and recipients send long URLs in their post-showing texts. Joe's private setup keeps `go.sellingpdxhomes.com` independently.
 
 ---
 
-## The three Phase 2 stages
+## Phase 2 stages (re-sliced into tiers, May 8, 2026)
 
-Stage A: extend `lofty_api.py` with the showing primitives. (Largest pure-Python work.)
-Stage B: bundle the four Workers as a configurable, deployable kit. (Worker source + wrangler configs + deploy runbook with Cloudflare MCP shortcuts.)
-Stage C: orchestration. Port the `schedule-showing` skill and add Phase 2 onboarding to the Easy Mode setup.
+Stage A: extend `lofty_api.py` with the showing primitives plus the v1.4.1 find_client fallback. (Largest pure-Python work.) **COMPLETE through v1.4.1.**
 
-Each stage is shippable on its own. Stage A done at v1.3.0; v1.4.0 added the API surface expansion on top. Stage B targets v1.5.0; Stage C targets v1.6.0; full Phase 2 ships at v1.6.0.
+Stage B: bundle the Workers as a tiered, configurable, deployable kit. **Re-sliced** from "all four Workers in v1.5" to "one Worker per release":
+- v1.5 = Tier 2 (`jotform-to-lofty` Worker + D1 + optimized setup).
+- v1.6 = Tier 3 SMS (`showing-sms` Worker, requires $5/mo paid plan).
+- v1.7 = Tier 3 polish (`leads-index` Worker, optionally `short-links` Worker if not cut per locked decision #11).
 
-### Stage A status: COMPLETE (v1.3.0 + v1.4.0)
+Stage C: orchestration. Port the `schedule-showing` skill and add Phase 2 onboarding to the Easy Mode setup. Target v1.7 or later (no longer pinned to a specific version, will fall in wherever it fits).
+
+Each tier is shippable on its own and useful in isolation. Most adopters will install v1.5 and stop there.
+
+### Stage A status: COMPLETE (v1.3.0 + v1.4.0 + v1.4.1)
 
 A1 ~~Revise `post_showing_questions.yaml` to match D1 schema.~~ DONE.
 A2 ~~Read `saling-automation/scripts/lofty_api.py` end-to-end.~~ DONE.
@@ -122,42 +138,96 @@ A3 ~~Port `prepare_showing` and the rest of the showing primitives.~~ DONE.
 A4 ~~Add CLI handlers and write smoke runner at `scripts/test_v1_3_methods.py`.~~ DONE.
 A5 ~~Update CHANGELOG to v1.3.0, repackage .skill.~~ DONE.
 
-Stage A bonus work in v1.4.0 (added based on deep API research probing Joe's real Lofty on May 7, 2026):
-- Discovered and fixed the Content-Type bug affecting all DELETE methods. Production has the same bug; Joe should patch his too.
-- Found 8 new quirks; documented as #21-#28 in `references/quirks.md`. Quirk #6 marked obsolete in place.
+Stage A bonus work in v1.4.0 (May 7 deep API probe):
+- Fixed Content-Type bug affecting all DELETE methods. Same patch applied to production.
+- Found 8 new quirks; documented as #21-#28 in `references/quirks.md`. Quirk #6 marked obsolete.
 - Ported 22 additional production methods: communication history reads, transactions, alerts, system logs (the unified human-readable timeline), task lifecycle, note lifecycle, webhook lifecycle, schema introspection.
-- Expanded `refresh_leads_index.py::_normalize` from 17 to 36 fields to capture buyer/seller intent, DNC flags, `leadPropertyList`, etc.
-- Confirmed that Lofty's REST API is much narrower than the UI suggests: 12 targeted 404s on guesses (stages, sources, segments, saved searches, drip campaigns, sequences, email templates, native showings, feedbacks). This negative data justifies the Phase 2 Workers+JotForm+D1 architecture and is documented in `RESEARCH_NOTES_2026-05-07.md` at the kit root.
-- The deep-research notes file is local-only (not tracked in the repo by default). Joe can decide whether to commit it.
+- Expanded `refresh_leads_index.py::_normalize` from 17 to 36 fields.
+- Confirmed Lofty's REST surface via 12 targeted 404s. Documented in `RESEARCH_NOTES_2026-05-07.md` at the kit root.
 
-### Stage B status (not started)
+Stage A bonus work in v1.4.1 (May 8 fix release):
+- `find_client` fallback to live API scan when local index misses. Closes the new-contact gap.
+- `_search_recent_leads` helper using scrollId-cursor pagination.
+- Quirk #29 added: `/v1.0/leads` `page` parameter is silently ignored.
+- Same patch mirrored to production.
 
-B1 Read all four Worker source files in `saling-automation/worker/` to understand the moving parts.
-B2 Create `lofty-cowork-helper/workers/` directory in the public kit. Copy the four Worker JS files plus their wrangler configs. Strip Joe-specifics. Replace any hardcoded URLs with environment-driven config.
-B3 Copy `worker/migrations/001_showing_feedback.sql` (already generic).
-B4 Write `lofty-cowork-helper/references/workers_setup.md` (port from Joe's `phase2-feedback-db-deploy.md`). Replace `wrangler` shell commands with Cloudflare MCP calls where the MCP supports it. Keep wrangler for: Worker code deploys, secret pushes, DO migrations.
-B5 Add a Worker-deploy walkthrough subroutine to SKILL.md that can be called from Easy Mode.
+### Stage B status: NOT STARTED. Re-sliced into three releases.
 
-### Stage C status (not started)
+#### v1.5 (Tier 2: `jotform-to-lofty` Worker + D1)
+
+B1.1 Read `saling-automation/worker/jotform_to_lofty_worker.js` end-to-end. Confirm the field-alias mapping vs. the field-ID mapping (see "Tier 2 (v1.5) plan" below for why this matters).
+B1.2 Read `saling-automation/worker/migrations/001_showing_feedback.sql` (already generic, ports verbatim).
+B1.3 Read `saling-automation/worker/wrangler.jotform.toml` and identify all Joe-specific values to placeholderize.
+B1.4 Read `saling-automation/docs/phase2-feedback-db-deploy.md` if it exists. This is the runbook to port and parameterize.
+B1.5 Create `lofty-cowork-helper/workers/` directory. Copy the Worker JS, the SQL migration, and a templated wrangler config. Strip Joe-specifics. Replace hardcoded values with `<placeholder>` tokens or env-driven config.
+B1.6 Write `lofty-cowork-helper/references/workers_setup.md` for the Tier 2 deploy. Cloudflare MCP for D1 creation and migration apply, wrangler for Worker code deploy and secret push. Five-minute target setup, validated by walking through it on a fresh test account.
+B1.7 Implement the five Tier 2 optimizations (see "Tier 2 (v1.5) plan" below).
+B1.8 Add a Tier 2 Easy Mode walkthrough subroutine to SKILL.md: "set up post-showing feedback."
+
+#### v1.6 (Tier 3 SMS: `showing-sms` Worker)
+
+B2.1 Read `saling-automation/worker/showing_sms_worker.js` and `wrangler.toml` (the DO migration).
+B2.2 Port the Worker to `lofty-cowork-helper/workers/`. Strip the hardcoded SMS template ("it's Joe") into an env-driven `OWNER_SMS_NAME` field.
+B2.3 Document the Workers Paid plan requirement prominently in the Tier 3 setup docs.
+B2.4 Add a Tier 3 SMS Easy Mode walkthrough subroutine.
+
+#### v1.7 (Tier 3 polish: `leads-index` Worker, possibly `short-links` Worker)
+
+B3.1 Decide whether to ship the `short-links` Worker at all (locked decision #11). If yes, port it; if no, document the long-Jotform-URL approach in the Tier 2 setup.
+B3.2 Port the `leads-index` Worker. Note: v1.4.1's find_client fallback makes this Worker a polish item rather than a requirement.
+B3.3 Update SKILL.md to surface the Tier 3 polish add-ons as opt-in.
+
+### Stage C status: NOT STARTED. Target v1.7 or later.
 
 C1 Port `.claude/skills/schedule-showing/SKILL.md` from `saling-automation` into the public kit as a sub-skill (or merged into the main SKILL.md as a workflow recipe; decide based on how Cowork prefers to bundle skills).
-C2 Add Phase 2 onboarding step to the public skill's Easy Mode setup: "Do you want the showing automation pieces?" If yes, walk through Cloudflare account check, JotForm account check, Resend optional, Worker deploys.
+C2 Add Phase 2 onboarding step to the public skill's Easy Mode setup: "Do you want the showing automation pieces?" If yes, walk through the relevant tier deploys.
 C3 Cancellation flow, multi-stop tour flow, post-showing feedback flow workflow recipes.
+
+---
+
+## Tier 2 (v1.5) plan
+
+Five optimizations, locked in the May 8 design conversation. The first three together reduce setup from ~30 minutes to ~5 minutes. Numbers four and five are polish.
+
+1. **Build the Jotform form programmatically at setup.** The Easy Mode walkthrough calls Jotform MCP's `create_form` with the structure derived from `assets/post_showing_questions.yaml` (already in the public skill). The user gets a fresh form in their account with predictable field IDs. The Worker drops the alias-guessing code (currently 30+ lines of `RATING_FIELDS` / `TEXT_FIELDS` / `TAG_FIELDS` arrays) and keys off the known IDs instead. Setup goes from "build a form with these 14 fields and pray the aliases match" to "say yes when Claude asks if you want a feedback form." THIS IS THE BIGGEST WIN.
+
+2. **Drop Resend as a setup requirement.** Lofty's `send_email` is the default recap path. Resend becomes opt-in via `RESEND_API_KEY` env var. Removes one entire account from the onboarding flow. Day-1 users get the recap email feature without a second sign-up. Already locked in decision #4.
+
+3. **Cloudflare MCP for D1, wrangler only for Worker code.** Setup walkthrough calls `d1_database_create` and `d1_database_query` via MCP. The MCP returns the database ID, which Claude pipes into the wrangler config automatically. Migration SQL applied via MCP too. Wrangler is left only for `wrangler deploy` and `wrangler secret put`.
+
+4. **Auto-generate `PREFERENCES_API_KEY`.** Setup script generates a random 32-char string, writes it to `.env` and pushes it to the Worker as a secret in the same step. User never sees it.
+
+5. **Auto-wire the Jotform webhook.** After the Worker deploys and we know its URL, Jotform MCP sets the form's webhook URL automatically. No "now copy this URL into Jotform's Settings" paragraph.
+
+### Open question for v1.5 to resolve before B1.7
+
+The form-import optimization (#1) makes the public Worker key off Jotform field IDs instead of guessing aliases. That means the public Worker will NOT be drop-in compatible with Joe's existing production form. Two paths:
+
+a) Ship a different field-ID-based Worker for the public template only. Leave Joe's production Worker (alias-based) alone. Two codebases diverge.
+
+b) Update both Joe's production AND the public to a field-ID-based Worker at once. Migrate Joe's existing form to match the new ID scheme. Single codebase stays.
+
+NOT decided in the May 8 conversation. Joe to pick at the start of v1.5.
+
+### One simplification considered and rejected (May 8)
+
+Moving the recap email send out of the Worker and into the Python client would remove the Resend dependency from the Worker entirely. Rejected because of timing: if a buyer submits feedback at 7pm and the agent is not running Cowork, the email does not go out until next morning. Bad buyer experience. Email stays in the Worker.
 
 ---
 
 ## Where everything lives (current state)
 
 - **Skill source:** `/Users/joesaling/Code/lofty-cowork-skill/lofty-cowork-helper/`
-- **Packaged skill file:** `/Users/joesaling/Code/lofty-cowork-skill/lofty-cowork-helper.skill` (v1.2.0, ~50 KB, gitignored)
+- **Packaged skill file:** `/Users/joesaling/Code/lofty-cowork-skill/lofty-cowork-helper.skill` (v1.4.1, ~90 KB, gitignored)
 - **Production reference:** `/Users/joesaling/Code/saling-automation/` (mounted; grant via `mcp__cowork__request_cowork_directory` if missing)
 - **Public web page source:** `docs/index.html`
 - **Recipient-facing docs:** `INSTALL.md`, `README.md`, `LICENSE`, `CHANGELOG.md`
 - **Distributor docs:** `PACKAGING.md`
 - **References:** `lofty-cowork-helper/references/{full-guide,quirks,workflows,extending,calendar_routing}.md`
 - **Assets:** `lofty-cowork-helper/assets/{lofty_api.py,env-template,CLAUDE.md.template,ics_builder.py,post_showing_questions.yaml}`
-- **Scripts:** `lofty-cowork-helper/scripts/{setup_check.py,test_v1_2_methods.py}`
+- **Scripts:** `lofty-cowork-helper/scripts/{setup_check.py,refresh_leads_index.py,test_v1_2_methods.py,test_v1_3_methods.py}`
 - **Logo:** `docs/SalingHomes_logo_wEXP_logo.png` (kept for the Saling Homes-branded GitHub Pages site; do NOT include in the .skill file or public template)
+- **Repackage command:** `cd /sessions/<your-session>/mnt/.claude/skills/skill-creator && python3 -m scripts.package_skill /sessions/<your-session>/mnt/lofty-cowork-skill/lofty-cowork-helper /sessions/<your-session>/mnt/lofty-cowork-skill`
 
 `calendar_routing.md` and `ics_builder.py` exist but are demoted to "future feature" per locked decision #6. Don't delete them; they'll come back when someone wants Outlook or Lofty-only flows.
 
@@ -165,9 +235,11 @@ C3 Cancellation flow, multi-stop tour flow, post-showing feedback flow workflow 
 
 ## Outstanding decisions
 
-1. **v1.2.0 GitHub release.** Tag and release. Whether to commit the Phase 2 design files (calendar_routing.md, ics_builder.py, post_showing_questions.yaml) BEFORE the v1.2.0 tag or AFTER is the only judgment call. My recommendation: tag v1.2.0 from the state at the end of the v1.2.0 work (just the four new methods + body-shape fixes + quirks), then commit the Phase 2 work as the start of v1.3.0. Keeps the version history clean.
-2. **Slide deck for Joe's realtor talk.** Joe was building a 12-slide deck in Claude Design at `claude.ai/design`, project name "Lofty + Claude for Realtors - 25 min Talk." Verify state. Separate from engineering work.
-3. **Lofty API key rotation.** Joe mentioned he might want to rotate after Phase 2 ships, since this skill becomes semi-public. Hold the rotation until Phase 2 is fully deployed so it's a single rotation pass, not two.
+1. **`v1.4.1` git tag.** The commit landed on origin/main as `f027a87` but no tag was created. If Joe wants release-tag parity with v1.4.0, tag it. Otherwise leave it as a tagless patch on main.
+2. **Form-import migration path for v1.5.** See "Open question for v1.5 to resolve before B1.7" above. Two-codebase divergence vs. one-codebase migration. Joe to pick at the start of v1.5.
+3. **Cut the short-links Worker from the public skill?** Locked decision #11 flagged this for investigation at v1.7. Joe to confirm at that time.
+4. **Slide deck for Joe's realtor talk.** Joe was building a 12-slide deck in Claude Design at `claude.ai/design`, project name "Lofty + Claude for Realtors - 25 min Talk." Verify state. Separate from engineering work.
+5. **Lofty API key rotation.** Joe mentioned he might want to rotate after Phase 2 ships, since this skill becomes semi-public. Hold the rotation until Phase 2 is fully deployed so it's a single rotation pass, not two.
 
 ---
 
@@ -202,18 +274,12 @@ This wording is currently used on the homepage, README, and INSTALL. Any new pub
 >
 > Before using this tool with real client data, confirm it fits your brokerage's data handling rules, your MLS rules, and what your clients reasonably expect. This skill is provided as is. Verify behavior in your own Lofty account before relying on it for client-facing work. Not affiliated with or endorsed by Lofty Inc. or Anthropic.
 
-Phase 2 disclosure expansion needed: when the recipient deploys the four Workers, lead data passes through Cloudflare (the Workers and D1) and JotForm (form submissions) and possibly Resend (email). Update the disclosure to enumerate these third parties and note the recipient's responsibility to verify their brokerage's data handling rules cover them.
+Phase 2 disclosure expansion needed at each tier ship:
 
----
-
-## How to package the skill after editing SKILL.md
-
-```bash
-cd /sessions/<your-session-id>/mnt/.claude/skills/skill-creator
-python3 -m scripts.package_skill /sessions/<your-session-id>/mnt/lofty-cowork-skill/lofty-cowork-helper /sessions/<your-session-id>/mnt/lofty-cowork-skill
-```
-
-Session ID is whatever your session has. Don't run this from inside the skill; run it from the skill-creator's location.
+- v1.5 ship: lead data passes through Cloudflare (the Worker and D1) and JotForm (form submissions). Add these as named third parties, note recipient responsibility to verify their brokerage's rules cover them.
+- v1.6 ship: SMS feedback texts route through Lofty's SMS endpoint (already covered) but the Worker handling the schedule queue runs on Cloudflare. No new third parties beyond v1.5; just expand the surface description.
+- v1.7 ship: leads-index Worker reads webhook events from Lofty and stores them in Cloudflare KV. Same providers as before. If short-links Worker is shipped (decision #11 pending), the redirector domain becomes a new visible touchpoint for buyers.
+- Optional Resend: only when the user opts in. Disclosure should treat it as opt-in, not default.
 
 ---
 
@@ -225,20 +291,31 @@ These details belong in HANDOFF.md and `docs/index.html` ONLY. Not in the public
 
 ---
 
-## What to do first when picking this up (recommended order)
+## What to do first when picking this up (recommended order, v1.5 pickup)
 
-Stage A is complete. The next session is picking up at Stage B (porting the four Cloudflare Workers).
+Stage A is COMPLETE through v1.4.1. The next session is picking up at v1.5 / Tier 2: porting the `jotform-to-lofty` Worker plus D1 plus the optimized setup, NOT all four Workers. The "all four Workers in v1.5" plan from earlier in this handoff is OBSOLETE; locked decision #9 supersedes it.
 
-1. Read this HANDOFF.md (you're doing it now).
+1. Read this HANDOFF.md (you're doing it now). Pay particular attention to the Phase 2 LOCKED DECISIONS section (especially #9 tiering, #4 Resend optional, #10 paid plan only for Tier 3 SMS, #11 short-links cut candidate) and the Tier 2 (v1.5) plan section.
+
 2. Verify `~/Code/saling-automation/` is mounted via `mcp__cowork__request_cowork_directory`. If not, request it. The production reference is required for the Worker port.
-3. Read `CHANGELOG.md` and confirm v1.4.0 is the latest entry.
-4. Confirm whether Joe has pushed v1.4.0 to GitHub yet:
-   - Run `git log --oneline -5` and `git tag --list` against the kit repo.
-   - If `v1.4.0` is NOT in the tag list, the working tree is still pre-release. Don't start Stage B until Joe ships v1.4.0; mixing pre-release working-tree changes with new Stage B work creates a tangled commit history.
-   - If `v1.4.0` IS tagged, you're clear to start Stage B from a clean main.
-5. Read `RESEARCH_NOTES_2026-05-07.md` at the kit root for the API surface map and the architectural justification of the Phase 2 Workers.
-6. Read the four Worker source files in `saling-automation/worker/` end-to-end before designing anything: `leads_index_worker.js`, `short_links_worker.js`, `jotform_to_lofty_worker.js`, `showing_sms_worker.js`. Plus `worker/migrations/001_showing_feedback.sql` and the two wrangler configs (`wrangler.toml`, `wrangler.jotform.toml`).
-7. Ask Joe one question: "Ready to push into Stage B1 (read all four Workers and plan the port)?" Wait for his answer before doing more.
-8. When Stage B porting begins (B2 onwards): every Worker URL, every account ID, every secret name becomes a placeholder or pulled from env. The Cloudflare account ID `22c50f7ac3f85d789dfec570642ae9af` and the `joe-2c5.workers.dev` subdomain MUST NOT appear in the public kit. Use the Cloudflare MCP for read-only inspection during development; reserve `wrangler` for actual deploys.
+
+3. Read `CHANGELOG.md` and confirm v1.4.1 is the latest entry. Run `git log --oneline -5` against the kit repo and confirm commit `f027a87` is on origin/main. If the v1.4.1 tag is missing, ask Joe whether he wants to add it before v1.5 starts (outstanding decision #1).
+
+4. Read `RESEARCH_NOTES_2026-05-07.md` at the kit root if you have not already. The API surface map and the architectural justification for the Workers is still relevant.
+
+5. Read the v1.5-relevant production files end-to-end (skip the SMS and leads-index Workers, those are v1.6 / v1.7 territory):
+   - `saling-automation/worker/jotform_to_lofty_worker.js`
+   - `saling-automation/worker/migrations/001_showing_feedback.sql`
+   - `saling-automation/worker/wrangler.jotform.toml`
+   - `saling-automation/docs/phase2-feedback-db-deploy.md` (the Joe-side runbook to port and parameterize)
+   - `saling-automation/docs/architecture.md` (still useful context)
+
+6. Resolve outstanding decision #2 with Joe BEFORE coding anything: "For the form-import optimization (Tier 2 plan #1), do you want to ship a separate field-ID-based Worker for the public template (your production form stays alias-based), or migrate both your production form and the public Worker to the new field-ID scheme at once?" Wait for his answer.
+
+7. Ask Joe one more confirmation: "Ready to push into B1.5 (port the Worker, strip Joe-specifics, write the v1.5 setup runbook)?" Wait for his answer.
+
+8. When porting begins: every Worker URL, every account ID, every secret name becomes a placeholder or pulled from env. The Cloudflare account ID `22c50f7ac3f85d789dfec570642ae9af`, the `joe-2c5.workers.dev` subdomain, the `sellingpdxhomes.com` domain, and Joe's email signature MUST NOT appear in the public kit. Use the Cloudflare MCP for read-only inspection during development; reserve `wrangler` for actual deploys.
+
+9. Setup-time goal: a fresh Tier 2 install runs in roughly five minutes. If the runbook gets longer than that, look back at the five Tier 2 optimizations and check whether something is being underused.
 
 Do NOT delete this HANDOFF.md until Phase 2 is finished and shipped. Joe wants it kept as the working brief.
