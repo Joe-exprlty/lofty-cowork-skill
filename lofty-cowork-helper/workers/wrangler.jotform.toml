@@ -1,0 +1,93 @@
+# Wrangler config for the jotform-to-lofty Worker.
+# ----------------------------------------------------
+# This Worker receives post-showing feedback from Jotform and writes
+# three things:
+#   1. A note on the matching Lofty lead.
+#   2. A recap email to the buyer (via Resend, optional).
+#   3. A row in the showing_feedback D1 database.
+#
+# Deploy with:
+#   cd lofty-cowork-helper/workers
+#   wrangler deploy -c wrangler.jotform.toml
+#
+# One-time setup on a fresh Cloudflare account:
+#   # 1. Create the D1 database and capture the id it prints:
+#   wrangler d1 create showing_feedback
+#
+#   # 2. Paste the id into the database_id field below.
+#
+#   # 3. Apply the schema migration:
+#   wrangler d1 execute showing_feedback \
+#     --file migrations/001_showing_feedback.sql --remote
+#
+#   # 4. Fill in OWNER_* values in the [vars] block below.
+#      (See env-template in the kit's assets folder for descriptions.)
+#
+#   # 5. Push secrets. Each prompts for the value.
+#   wrangler secret put LOFTY_API_KEY -c wrangler.jotform.toml
+#   wrangler secret put PREFERENCES_API_KEY -c wrangler.jotform.toml
+#   # Optional: only if you want the buyer recap to come from your own
+#   # verified Resend sending domain. Without it, the recap email falls
+#   # back to Lofty's send_email endpoint and is delivered to the
+#   # lead's primary email address.
+#   wrangler secret put RESEND_API_KEY -c wrangler.jotform.toml
+#
+#   # 6. Deploy.
+#   wrangler deploy -c wrangler.jotform.toml
+#
+# For day-to-day deploys after that, step 6 is all you need (and only
+# step 5 if a secret rotated).
+
+name = "jotform-to-lofty"
+main = "jotform_to_lofty_worker.js"
+compatibility_date = "2026-04-22"
+
+# D1 database binding. The Worker writes one row per Jotform
+# submission here, and reads from it to aggregate buyer preferences.
+# Replace database_id with the id printed by `wrangler d1 create`.
+[[d1_databases]]
+binding = "DB"
+database_name = "showing_feedback"
+database_id = "REPLACE_WITH_D1_ID_FROM_WRANGLER_D1_CREATE"
+
+# Owner identity used in the buyer recap email. These are NOT secret;
+# they appear in the email's From header and signature block. Match
+# what's in your .env / CLAUDE.md.
+#
+#   OWNER_FULL_NAME    Your name as you want it shown to buyers.
+#   OWNER_EMAIL        Your verified Resend "from" address. Must be on
+#                      a domain you've verified in Resend; otherwise
+#                      Resend rejects the send.
+#   OWNER_PHONE        Phone number shown in the signature.
+#   OWNER_BROKERAGE    Brokerage / company name shown in the signature.
+#   OWNER_WEBSITE      Optional website link in the HTML signature.
+#                      Leave blank to omit the line.
+#
+#   JOTFORM_FIELD_MAP  JSON-stringified object mapping Jotform qid ->
+#                      purpose tag. Populated by Easy Mode after the
+#                      form is built via Jotform MCP. Empty default
+#                      means the Worker falls back to alias matching
+#                      (slower, less reliable). See
+#                      assets/jotform_form_template.md for the build
+#                      procedure and the expected shape.
+[vars]
+OWNER_FULL_NAME = "REPLACE_WITH_OWNER_FULL_NAME"
+OWNER_EMAIL = "REPLACE_WITH_OWNER_EMAIL"
+OWNER_PHONE = "REPLACE_WITH_OWNER_PHONE"
+OWNER_BROKERAGE = "REPLACE_WITH_OWNER_BROKERAGE"
+OWNER_WEBSITE = ""
+JOTFORM_FIELD_MAP = "{}"
+
+# Notes on secrets (do not put them here, set with `wrangler secret put`):
+#   LOFTY_API_KEY         - personal access token, same value as .env.
+#                           Also used to send the buyer recap email when
+#                           RESEND_API_KEY is not set (Lofty fallback).
+#   RESEND_API_KEY        - Resend API key for the buyer recap email
+#                           (optional; if unset, the Worker falls back
+#                           to Lofty's send_email endpoint, which sends
+#                           to the lead's primary email on file).
+#   PREFERENCES_API_KEY   - Bearer token required on GET /preferences/:leadId
+#                           so random callers cannot pull a buyer's history.
+#                           Generate a random 32-char string and store it in
+#                           .env as LOFTY_PREFERENCES_API_KEY for the Python
+#                           client to use.

@@ -38,6 +38,10 @@ OWNER_EMAIL=<your-email>
 OWNER_LAST_NAME_LOWER=<your last name lowercase>
 MLS_NAME=<your MLS, e.g. RMLS>
 
+# Optional: shown as a clickable link in the HTML buyer recap email
+# signature (jotform-to-lofty Worker). Leave blank to omit the line.
+# OWNER_WEBSITE=https://www.example.com
+
 
 # ── Phase 2: Cloudflare Worker integrations ──────────────────────
 # Only needed if you've deployed your own Workers. The Python client
@@ -90,6 +94,14 @@ MLS_NAME=<your MLS, e.g. RMLS>
 
 # Bearer token for the jotform-to-lofty Worker /preferences endpoint:
 # LOFTY_PREFERENCES_API_KEY=your-preferences-bearer-token-here
+
+# Resend API key for the buyer recap email sent by the jotform-to-lofty
+# Worker. OPTIONAL: if unset, the Worker falls back to Lofty's
+# send_email endpoint to deliver the recap to the lead's primary email
+# on file. Set this only if you want the recap to come from your own
+# verified sending domain (matching OWNER_EMAIL) and to land at the
+# email address the buyer typed into the form.
+# RESEND_API_KEY=your-resend-api-key-here
 
 # Cloudflare API token, only needed if you'll deploy Workers via
 # wrangler CLI (required for showing-sms; optional for the others).
