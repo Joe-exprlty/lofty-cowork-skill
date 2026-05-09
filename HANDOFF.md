@@ -2,6 +2,41 @@
 
 This file gets a new Claude Cowork session up to speed on the **Phase 2** build of the Lofty + Cowork skill project. Read this first, then explore the current files before doing anything.
 
+---
+
+## NEXT SESSION QUICK START
+
+> Joe opened a new prompt and typed "Read Handoff.md and continue conversation." Follow this section to pick up exactly where we left off. Do NOT recap the prior session's work back to Joe; he was there. Get to the point.
+
+**Where we left off (May 8, 2026):** v1.4.1 shipped to GitHub (commit `f027a87` on origin/main). The find_client fallback is live in both the public skill and the production reference. We agreed Phase 2 Stage B is re-sliced into tiers: v1.5 = Tier 2 (the `jotform-to-lofty` Worker plus D1), v1.6 = Tier 3 SMS, v1.7 = Tier 3 polish. We also locked the five Tier 2 optimizations (see "Tier 2 (v1.5) plan" below). One decision is still open from the May 8 conversation: the form-import migration path. That is the gating question for v1.5.
+
+**Do these checks silently first (do NOT narrate them to Joe):**
+
+1. Verify `~/Code/saling-automation/` is mounted via `mcp__cowork__request_cowork_directory`. If not, request it.
+2. Run `git log --oneline -3` on `~/Code/lofty-cowork-skill`. Confirm commit `f027a87 v1.4.1: find_client fallback for unsynced contacts` is at the top and the working tree is clean. If HANDOFF.md is uncommitted, that is fine and expected; Joe planned to land it with v1.5 prep.
+3. Read these v1.5-relevant production files end-to-end (skim if you read them in a recent prior session, but do not skip):
+   - `saling-automation/worker/jotform_to_lofty_worker.js`
+   - `saling-automation/worker/migrations/001_showing_feedback.sql`
+   - `saling-automation/worker/wrangler.jotform.toml`
+   - `saling-automation/docs/phase2-feedback-db-deploy.md` if it exists (Joe-side runbook to port)
+4. Skim the "Phase 2 LOCKED DECISIONS," "Tier 2 (v1.5) plan," and "Stage B status" sections of THIS file so you have the constraints fresh.
+
+**Then, as your FIRST user-facing message, ask Joe this exact question** (no preamble beyond "Picking up where we left off." or similar one-liner; no recap of v1.4.1):
+
+> Picking up at v1.5 / Tier 2. One open decision before I touch code: for the form-import optimization (the public skill's Easy Mode walkthrough creates a Jotform form programmatically from `assets/post_showing_questions.yaml`), the public Worker should key off Jotform field IDs instead of guessing aliases like your production Worker does today. That gives us two paths.
+>
+> **Path A: separate codebases.** Ship a new field-ID-based Worker for the public template only. Your production Worker stays alias-based and unchanged. The two implementations diverge.
+>
+> **Path B: one codebase.** Migrate your production Jotform form to match the new field-ID scheme, update your production Worker to match, and ship the same Worker code in the public skill. One implementation across both repos.
+>
+> Path A is faster to ship but creates two things to maintain. Path B is more disruptive in the short term but keeps your stack and the public skill in lockstep. Which one?
+
+Use the AskUserQuestion tool for this so Joe gets a clean choice picker. Wait for his answer.
+
+**After Joe answers**, proceed to v1.5 B1.5 (port the Worker, strip Joe-specifics, write the v1.5 setup runbook). The full B1.x task ladder is in the "Stage B status" section below. The five Tier 2 optimizations are locked and listed in the "Tier 2 (v1.5) plan" section. Setup-time goal: a fresh Tier 2 install runs in roughly five minutes.
+
+---
+
 **Status as of May 8, 2026:**
 
 - **v1.4.1 is shipped to GitHub** (`lofty-cowork-helper.skill`, ~90 KB at the kit root, gitignored). Public skill commit `f027a87` is on origin/main. The matching production patch is on `saling-automation` origin/main (commit `9217d0c`). The `v1.4.1` git tag was NOT created on the public repo (commit landed via GitHub Desktop without the tag step). If Joe wants tagged-release parity with v1.4.0, tag commit `f027a87` as `v1.4.1` and push tags. Otherwise the working tree is clean.
