@@ -6,6 +6,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [1.5.0] - 2026-05-09
+
+Phase 2 Stage B: Tier 2 post-showing feedback Worker. Ships the `jotform-to-lofty` Cloudflare Worker, the `showing_feedback` D1 schema, and an Easy Mode setup walkthrough that uses Cloudflare MCP and Jotform MCP to bring up the entire stack in about five minutes. Recipients deploy their own Worker on the Cloudflare free tier; no paid plan required for v1.5. Verified end-to-end on production (Joe's `261040658235049` form) with a real lead, real D1 row, and real Resend recap.
+
+### Added
+- `lofty-cowork-helper/workers/jotform_to_lofty_worker.js`. Receives Jotform post-showing submissions, writes one Lofty note per submission via `POST /v1.0/notes`, writes one row per submission to D1, and emails the buyer a recap. Recap email is opt-in Resend (delivers to the buyer's submitted email and sends from a verified domain) or default Lofty `send_email` (delivers to the lead's primary email on file in Lofty, no extra account required). Workers free tier covers the load. Routes: `GET /` health check, `POST /` Jotform webhook, `GET /preferences/:leadId` Bearer-auth-gated buyer profile aggregation.
+- `lofty-cowork-helper/workers/migrations/001_showing_feedback.sql`. D1 schema for the per-submission row store. Idempotent (`CREATE TABLE IF NOT EXISTS`), so re-running on an existing database is a no-op.
+- `lofty-cowork-helper/workers/wrangler.jotform.toml`. Templated wrangler config. Database id, owner identity, and `JOTFORM_FIELD_MAP` are placeholders the setup flow fills in.
+- `lofty-cowork-helper/references/workers_setup.md`. Full Tier 2 deploy runbook. Easy Mode walkthrough is the 12-step Cloudflare MCP + Jotform MCP + wrangler sequence. Power User Mode is the manual shell-and-clicks version. Adds a Node prereq step (Homebrew, .pkg installer, Windows installer, Linux package manager paths) and recommends `npx wrangler` over `npm install -g wrangler` to sidestep PATH issues.
+- `lofty-cowork-helper/assets/jotform_form_template.md`. Read at runtime by Easy Mode Tier 2 setup. Holds the natural-language `create_form` prompt template, the post-creation `fetch` introspection, and the `JOTFORM_FIELD_MAP` build procedure.
+- `lofty-cowork-helper/scripts/test_worker_parsers.mjs`. Smoke test for the Worker's submission parser. Synthesizes Jotform-shaped POST bodies and walks them through four scenarios: legacy alias-only form, fresh form without map, fresh form with map, and a renamed-fields case where only the qid map saves you. All 32 assertions pass.
+- New "Tier 2 setup: post-showing feedback Worker" section in `lofty-cowork-helper/SKILL.md` (B1.8 picker). Triggers on phrases like "set up Tier 2," "deploy the Worker," "set up post-showing feedback." Asks Easy Mode vs Power User Mode via AskUserQuestion, runs silent prereq checks (`LOFTY_API_KEY`, `CLOUDFLARE_API_TOKEN`, Node, wrangler-or-npx, Jotform account, Cloudflare MCP and Jotform MCP connected), and routes to the appropriate `references/workers_setup.md` walkthrough.
+
+### Changed
+- `lofty-cowork-helper/assets/post_showing_questions.yaml`. `header_html` is now parameterized with `{{ACCENT_COLOR}}`, `{{TEXT_COLOR}}`, and `{{LOGO_HTML}}` tokens. New `default_accent_color` (#D4AF37 gold) and `default_text_color` (#1a1a1a near-black) fields hold sensible fallbacks for the "user accepts defaults" path.
+- `lofty-cowork-helper/assets/env-template`. Added optional `OWNER_WEBSITE` line. `RESEND_API_KEY` reframed as optional with a clear description: skip it and the Worker still sends the recap, just through Lofty's `send_email` instead. Tier 2 install needs ZERO new accounts beyond Cloudflare and Jotform.
+- `lofty-cowork-helper/SKILL.md` frontmatter description. Now triggers on Tier 2 deploy phrases.
+
+### Fixed
+- Worker Worker reads of hidden fields are now case-insensitive. Jotform's `create_form` agent normalizes hidden field names to lowercase (`propertyaddress` instead of `propertyAddress`) at form-creation time; the Worker now reads `submission.propertyaddress`, `submission.propertyAddress`, and the legacy `submission.property_address_hidden` in that order so submissions from forms built via either path resolve correctly. Same treatment for `showingDate` and `propertyStats`. Caught and fixed during the live production migration; covered by the smoke test's `fresh-aliasonly` scenario.
+
+### Notes
+- v1.5.0 is a Tier 2 release. Tier 1 (Lofty CRM client + leads index + showing primitives) is unchanged; existing v1.4.1 installs keep working with no migration. To opt into Tier 2, run "set up Tier 2" or "deploy the post-showing feedback Worker" in Cowork and follow the picker.
+- Recap email default is Lofty's `send_email` endpoint. Resend is opt-in for users who want a verified-domain From address and to deliver to the email the buyer typed into the form (rather than the lead's primary email on file in Lofty).
+- The natural-language `create_form` path documented in `assets/jotform_form_template.md` works but produces Classic Forms with mediocre visual polish. v1.6 will add a "clone this Jotform template" path that ships a polished Card Form template; v1.5 users can also point Easy Mode at an existing form they have already polished, since the qid map is derived from the running form rather than baked in.
+- Tier 3 (showing-reminder SMS Worker) is a separate v1.6 deploy that requires the Cloudflare Workers Paid plan ($5/mo). v1.5 ships entirely on the Cloudflare free tier.
+
+---
+
 ## [1.4.1] - 2026-05-08
 
 Focused fix release. `find_client` now finds contacts that haven't yet synced into the local leads index. Before this patch, creating a new lead in Lofty and immediately asking Claude to find them returned "no match" because the index file (or the leads-index Worker) was still catching up. Now the lookup falls back to the live API and surfaces the new contact in one extra request.

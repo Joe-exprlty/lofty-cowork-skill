@@ -170,13 +170,21 @@ export default {
       const submission = await parseJotformPost(request);
 
       const leadId = submission.lead_id;
+      // Jotform's create_form agent often normalizes the unique names of
+      // hidden fields to lowercase (e.g. propertyAddress -> propertyaddress)
+      // even when the prompt asked for a specific case. Read both variants
+      // plus the legacy snake_case names from the older form layout.
       const propertyAddress =
+        submission.propertyaddress ||
         submission.propertyAddress ||
         submission.property_address_hidden ||
+        submission.property_address ||
         "(unknown property)";
       const showingDate =
+        submission.showingdate ||
         submission.showingDate ||
         submission.showing_date_hidden ||
+        submission.showing_date ||
         formattedToday();
 
       if (!leadId || leadId === "test") {
@@ -474,7 +482,8 @@ function buildNoteBody(submission, propertyAddress, showingDate, purposeToQid) {
   const lines = [];
   lines.push("Property: " + propertyAddress);
   lines.push("Showing date: " + showingDate);
-  if (submission.propertyStats) lines.push("Stats: " + submission.propertyStats);
+  const propertyStats = submission.propertystats || submission.propertyStats || submission.property_stats;
+  if (propertyStats) lines.push("Stats: " + propertyStats);
   if (submission.client_name) lines.push("Client: " + submission.client_name);
   lines.push("");
 

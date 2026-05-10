@@ -13,13 +13,22 @@ Tier 2 runs entirely on the Cloudflare free tier. No paid plan required.
 
 ## Prereqs
 
-Five minutes of one-time account setup before you start:
+Five to ten minutes of one-time account and tool setup before you start:
 
-1. **Cloudflare account.** Free tier is fine. Sign up at `dash.cloudflare.com`. The Cloudflare MCP handles account selection, D1 creation, and migration apply; you don't need to click around the dashboard for any of those.
-2. **`wrangler` installed.** `npm install -g wrangler`. Wrangler is used for two things only: pushing Worker secrets (`wrangler secret put`) and deploying the Worker code (`wrangler deploy`). All D1 setup runs through the Cloudflare MCP instead.
-3. **`CLOUDFLARE_API_TOKEN` in your `.env`.** Get from `dash.cloudflare.com/profile/api-tokens` using the "Edit Cloudflare Workers" template. This lets `wrangler` deploy without prompting.
-4. **Jotform account.** Free tier is fine. Sign up at `jotform.com`.
-5. **Optional, only if you want the buyer recap email to come from your own verified domain:** a Resend account at `resend.com` plus a verified sending domain matching your `OWNER_EMAIL`. Skip this and the Worker still sends the recap, just through Lofty's `send_email` endpoint instead. The Lofty path delivers to the lead's primary email on file in Lofty rather than the email the buyer typed into the form. Most users skip Resend on day 1 and add it later if they want the deliverability and the From address polish.
+1. **Node.js installed (provides `npm` and `npx`).** Wrangler is a Node package, so without Node it can't run. Most real estate agents don't have Node out of the box; install it once and you're set.
+   - Check first: `node --version && npm --version`. If both return version numbers, skip ahead to step 2.
+   - **macOS with Homebrew:** `brew install node`. Verify with `node --version && npm --version`.
+   - **macOS without Homebrew:** download the LTS macOS `.pkg` installer from `https://nodejs.org/en/download`, double-click, follow the prompts. Open a NEW terminal window after install (existing windows won't see the new PATH), then verify with `node --version && npm --version`.
+   - **Windows:** download the LTS Windows installer from `https://nodejs.org/en/download`, run it, accept defaults. Open a new PowerShell or Command Prompt and verify with `node --version` and `npm --version`.
+   - **Linux:** use your distro's package manager (e.g., `sudo apt install nodejs npm` on Debian/Ubuntu) or `nvm` if you want version control.
+2. **Cloudflare account.** Free tier is fine. Sign up at `dash.cloudflare.com`. The Cloudflare MCP handles account selection, D1 creation, and migration apply; you don't need to click around the dashboard for any of those.
+3. **`wrangler` available.** Two paths:
+   - **Recommended for one-off deploys:** use `npx wrangler` instead of installing globally. The first call downloads wrangler to npm's cache; subsequent calls run instantly. No global install needed.
+   - **Or install globally:** `npm install -g wrangler`, then verify with `wrangler --version`. If `wrangler` isn't found after the install, npm's global bin directory may not be on your `PATH`; either use `npx wrangler` or fix PATH.
+   Wrangler is used for two things only: pushing Worker secrets (`wrangler secret put`) and deploying the Worker code (`wrangler deploy`). All D1 setup runs through the Cloudflare MCP instead.
+4. **`CLOUDFLARE_API_TOKEN` in your `.env`.** Get from `dash.cloudflare.com/profile/api-tokens` using the "Edit Cloudflare Workers" template. This lets `wrangler` deploy without prompting.
+5. **Jotform account.** Free tier is fine. Sign up at `jotform.com`.
+6. **Optional, only if you want the buyer recap email to come from your own verified domain:** a Resend account at `resend.com` plus a verified sending domain matching your `OWNER_EMAIL`. Skip this and the Worker still sends the recap, just through Lofty's `send_email` endpoint instead. The Lofty path delivers to the lead's primary email on file in Lofty rather than the email the buyer typed into the form. Most users skip Resend on day 1 and add it later if they want the deliverability and the From address polish.
 
 ## Pick your path
 
