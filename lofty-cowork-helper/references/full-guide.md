@@ -232,7 +232,7 @@ That is enough to do the basic workflows. Add more methods to the client as you 
 ## 7. Step-by-step: get your Lofty API key
 
 1. Log into Lofty in a browser.
-2. Go to Settings, then API Keys.
+2. Go to **Settings → Integrations → API** (Lofty's official path per the public API docs at `https://api.lofty.com/docs/`).
 3. Generate a personal access token. It will be a long string starting with `eyJ` (it is a JSON Web Token, or JWT).
 4. Copy it. You will paste it into `.env` next.
 5. Treat this token like a password. Anyone with it can read and write everything in your Lofty account.

@@ -42,6 +42,19 @@ name = "jotform-to-lofty"
 main = "jotform_to_lofty_worker.js"
 compatibility_date = "2026-04-22"
 
+# Publish to your workers.dev subdomain. The Jotform webhook posts to
+# this URL, so it stays on by default. If you later attach the Worker
+# to a custom domain, you can flip this to false and use a routes
+# block instead.
+workers_dev = true
+
+# Preview URLs (per-version preview links) are OFF by default in this
+# kit because the Worker holds LOFTY_API_KEY and can write notes to
+# the agent's Lofty. A leaked preview URL would let anyone submit
+# fake feedback and pollute the agent's CRM. Flip to true only if you
+# need preview URLs for debugging and accept that risk.
+preview_urls = false
+
 # D1 database binding. The Worker writes one row per Jotform
 # submission here, and reads from it to aggregate buyer preferences.
 # Replace database_id with the id printed by `wrangler d1 create`.
@@ -64,19 +77,24 @@ database_id = "REPLACE_WITH_D1_ID_FROM_WRANGLER_D1_CREATE"
 #                      Leave blank to omit the line.
 #
 #   JOTFORM_FIELD_MAP  JSON-stringified object mapping Jotform qid ->
-#                      purpose tag. Populated by Easy Mode after the
-#                      form is built via Jotform MCP. Empty default
-#                      means the Worker falls back to alias matching
-#                      (slower, less reliable). See
-#                      assets/jotform_form_template.md for the build
-#                      procedure and the expected shape.
+#                      purpose tag. The default ships with the canonical
+#                      qid layout produced by the public template clone
+#                      (form id 261294238566162); routing works on a
+#                      fresh Easy Mode install with no further edits.
+#                      Override this if you built the form via the
+#                      v1.5 create_form fallback path or otherwise
+#                      have a different qid layout. The Worker falls
+#                      back to alias matching when this is set to "{}",
+#                      but cloned-template installs should NOT need
+#                      that fallback. See assets/jotform_form_template.md
+#                      for shape details.
 [vars]
 OWNER_FULL_NAME = "REPLACE_WITH_OWNER_FULL_NAME"
 OWNER_EMAIL = "REPLACE_WITH_OWNER_EMAIL"
 OWNER_PHONE = "REPLACE_WITH_OWNER_PHONE"
 OWNER_BROKERAGE = "REPLACE_WITH_OWNER_BROKERAGE"
 OWNER_WEBSITE = ""
-JOTFORM_FIELD_MAP = "{}"
+JOTFORM_FIELD_MAP = '{"40":"first_reaction","41":"daily_life_fit","42":"neighborhood_rating","43":"condition_rating","44":"value_rating","45":"short_list","46":"standout_text","49":"loved_tags","50":"dealbreaker_tags","51":"memory_notes"}'
 
 # Notes on secrets (do not put them here, set with `wrangler secret put`):
 #   LOFTY_API_KEY         - personal access token, same value as .env.

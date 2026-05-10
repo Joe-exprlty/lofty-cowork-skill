@@ -64,9 +64,9 @@ Open https://www.python.org/downloads/ in their browser if possible. After they 
 
 Tell the user:
 
-> "Now I need a special code from Lofty so Claude can talk to it. Here's how to get it. Open Lofty in your web browser. Click your profile picture in the top right corner of Lofty. Click 'Personal Settings.' On the left side menu, click 'Integrations.' Scroll all the way to the bottom of the page until you see a section called 'API Keys.' On the right side of that section, click the '+ Create API Key' button. Lofty will show you a long code. Copy the whole code. Tell me when you have it copied."
+> "Now I need a special code from Lofty so Claude can talk to it. Here's how to get it. Open Lofty in your web browser. Click your profile picture in the top right corner of Lofty. Click 'Settings' (or 'Personal Settings' depending on your Lofty plan). On the left side menu, click 'Integrations.' Find the section called 'API' (per Lofty's official docs at api.lofty.com/docs). Click the button to generate a new API key. Lofty will show you a long code. Copy the whole code. Tell me when you have it copied."
 
-If they say Lofty doesn't have an API Keys section, tell them:
+If they say Lofty doesn't have an API section, tell them:
 
 > "It looks like your Lofty plan doesn't have API access turned on. Reach out to Lofty support and ask them to enable API access for your account. Once they do, come back and we'll finish setting this up."
 
@@ -133,7 +133,7 @@ Also extract the user ID and team ID from the response and update `CLAUDE.md` si
 
 If it fails:
 
-- "Bad credentials" or HTTP 401: "The code you copied from Lofty isn't being accepted. Let's try once more. In Lofty, go back to Personal Settings, then Integrations, then API Keys. Generate a new code (you can revoke the old one first). Replace the code in our settings file. Tell me when you've saved it."
+- "Bad credentials" or HTTP 401: "The code you copied from Lofty isn't being accepted. Let's try once more. In Lofty, go back to Settings (or Personal Settings), then Integrations, then the API section. Generate a new code (you can revoke the old one first). Replace the code in our settings file. Tell me when you've saved it."
 - Other errors: tell the user "Something didn't work. Check the help section on the website for help: github.com/Joe-exprlty/lofty-cowork-skill" and stop. Do not loop on errors more than twice.
 
 ### 9. Guided demo
@@ -170,7 +170,7 @@ After the demo, tell them:
 
 Use this only if the user explicitly says they're technical or asks for the fast version. Skip the warm-up and condense everything.
 
-1. Confirm OS, Python version, and that they have a Lofty API key already in hand (or pause for them to grab one from Lofty Personal Settings → Integrations → API Keys → Create).
+1. Confirm OS, Python version, and that they have a Lofty API key already in hand (or pause for them to grab one from Lofty Settings → Integrations → API per `api.lofty.com/docs`).
 2. In one message, list what you'll do: create `~/Code/lofty-tools/{scripts,.claude,data}`, drop the starter Python client, the `.env` template, and `CLAUDE.md.template`, write a `.gitignore`.
 3. Tell them to paste their key into `.env` and save. Wait.
 4. Ask them to paste the customizations they want in `CLAUDE.md` as a single message (name, brokerage, city, phone, email, last name, timezone). Update the file in one go.

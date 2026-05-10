@@ -6,6 +6,37 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [1.6.1] - 2026-05-10
+
+Patch release after end-to-end testing v1.6 with a brand new Jotform account and a brand new Cloudflare account exposed several first-time-user papercuts the original v1.6 release didn't surface. No architectural changes; the Worker code, D1 schema, and overall flow are unchanged from v1.6. Existing v1.6 installs continue to run without re-deploy; the only meaningful code-side fix (canonical `JOTFORM_FIELD_MAP` default) applies only to NEW installs cloning the public template.
+
+### Fixed
+- `lofty-cowork-helper/workers/wrangler.jotform.toml` ships the canonical `JOTFORM_FIELD_MAP` as the default value of the `JOTFORM_FIELD_MAP` env var. Previously the default was `"{}"` and Worker fell back to alias matching. Because the public template form's qid 51 uses Jotform's auto-generated unique name `anythingElse`, the alias path silently dropped buyer-typed memory notes on the floor. With the canonical map shipped as default, qid 51 routes correctly to the `memory_notes` D1 column on fresh installs.
+- `lofty-cowork-helper/workers/wrangler.jotform.toml` explicitly sets `workers_dev = true` and `preview_urls = false` at the top level. Silences wrangler 4.x's default-warnings and (more importantly) closes a real attack surface: with `preview_urls` defaulting to true, every Worker version exposes a publicly accessible preview URL holding `LOFTY_API_KEY`.
+
+### Changed (docs only)
+- `lofty-cowork-helper/references/workers_setup.md` rewritten in multiple sections after E2E testing:
+  - **Prereqs.** Added a leading step instructing users to install the Cloudflare MCP and Jotform MCP from Claude Desktop → Customize → Connectors before starting. Without these, Easy Mode can't read the user's accounts.
+  - **Prereqs.** Added a dedicated step for obtaining the Lofty API token. Sends users to **Settings → Integrations → API** per Lofty's official docs at `api.lofty.com/docs` (previous kit text said "API Keys" which is the old section name).
+  - **Prereqs.** Cloudflare API token step now explicitly walks users through setting **Account Resources** and **Zone Resources** dropdowns on the "Edit Cloudflare Workers" template. On a zoneless account (which every brand-new account is), both dropdowns must be set or Cloudflare won't let you create the token.
+  - **Prereqs.** Jotform signup step now warns about the "SAVE 50%" upsell banner, the "Jotform for Claude" promo card (different integration, not what this kit uses), and the `?onboardingPrompt=1` first-run URL parameter that hides the "Import form" tile.
+  - **Easy Mode step 2 (clone the template).** Path wording updated from "Create → Form → Import Form → From a Web Page" to "+ CREATE → Import form → Import from URL" to match Jotform's current UI. Added a note about Jotform's misleading "I'll turn it into a form" tagline (the behavior is a faithful clone, not AI synthesis). Updated the JOTFORM_FIELD_MAP note to reflect the new canonical-map default.
+  - **Easy Mode step 7 (push secrets).** `LOFTY_API_KEY` is now auto-piped from `.env` via `grep | cut | tr | wrangler secret put`, eliminating the manual paste. Added a warning about wrangler's "There doesn't seem to be a Worker called 'jotform-to-lofty'. Do you want to create..." prompt that fires on every fresh-account install.
+  - **Easy Mode step 8 (deploy).** Added a warning about wrangler's workers.dev subdomain registration prompt that fires on every fresh-account install. Noted that the chosen subdomain is permanent and globally unique. Added a note about wrangler 4.x `workers_dev` / `preview_urls` default warnings (v1.6.1's toml fix silences them).
+  - **Easy Mode step 9 (wire webhook).** Rewritten end to end. The Jotform MCP cannot configure webhooks (its `edit_form` only handles question/field edits and returns empty changes for webhook instructions). Users now wire the webhook manually via Jotform UI: Form Builder → SETTINGS → Integrations → Webhooks → paste Worker URL → Complete Integration.
+  - **Easy Mode step 10 (health check).** Added a warning that the workers.dev SSL certificate takes 5-15 minutes to propagate on a fresh subdomain. Curl returns exit code 35 during that window. Don't proceed to smoke test until the health check passes cleanly.
+  - **Easy Mode step 11 (smoke test).** Added the `memory_notes` column verification as the canonical check that the `JOTFORM_FIELD_MAP` default fix is working.
+  - **Power User Mode walkthrough.** Same Jotform UI path updates as Easy Mode step 2.
+  - **Bottom of file.** Corrected the leftover claim that "Tier 3 ships in v1.6"; Tier 3 SMS Worker is now pinned for v1.7.
+- `lofty-cowork-helper/SKILL.md`. Lofty API key retrieval path updated to match Lofty's official docs (`Settings → Integrations → API` rather than `Personal Settings → Integrations → API Keys`). Three locations updated: the user-facing walkthrough text, the error recovery script, and the Power User Mode setup quick reference.
+- `lofty-cowork-helper/references/full-guide.md` step 7. Same Lofty API path update.
+
+### Notes
+- All v1.6 fixes were surfaced by a real end-to-end test against fresh Jotform and Cloudflare accounts, plus a real Lofty smoke submission writing to a real lead's timeline. Test artifacts live in the project's E2E test journal (gitignored).
+- The patches do NOT require existing v1.5 or v1.6 production users to redeploy. Existing deployments that already have a populated `JOTFORM_FIELD_MAP` (per-install map derived during setup) continue to route correctly. The fix matters only for NEW installs that take the default toml without setting an explicit map.
+
+---
+
 ## [1.6.0] - 2026-05-10
 
 Tier 2 polish release. Switches Easy Mode form creation from `create_form` natural-language generation to a one-pass import of a polished public template. Eliminates the Classic Form / lowercase field name / theme color drift that the v1.5 `create_form` path produced. The `create_form` flow stays in the kit as a documented fallback. No Worker code changes; no D1 schema changes. v1.5 installs keep running unchanged; new installs land on the cleaner template-clone path.
