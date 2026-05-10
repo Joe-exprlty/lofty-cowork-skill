@@ -1,8 +1,12 @@
-# Tier 2: Post-Showing Feedback Worker (v1.5)
+# Tier 2: Post-Showing Feedback Worker (v1.6)
 
 This is the Tier 2 setup. It deploys one Cloudflare Worker (`jotform-to-lofty`) and one D1 database (`showing_feedback`), and points your Jotform post-showing form at the Worker. Once it's running, every form submission writes a Lofty note, stores a row in D1, and (optionally) sends the buyer a recap email.
 
 Tier 2 runs entirely on the Cloudflare free tier. No paid plan required.
+
+## What changed in v1.6
+
+The Jotform form is now created by **cloning a polished public template** instead of being generated from a natural-language prompt. Click one link, get a Card Form with the right questions, the right hidden fields, and a clean header layout already in place. The previous `create_form` path produced Classic Forms with mediocre visual polish and required several follow-up edits to land a usable form. The template-clone path is the new primary; the `create_form` flow stays in the kit as a documented fallback for users who can't or won't clone a shared template.
 
 ## What you get
 
@@ -51,23 +55,25 @@ Both paths produce the same end state, and Claude can answer questions or take o
 This is the script Claude follows when you say "set up Tier 2." Listed here for reference; if you're going Easy Mode you don't need to type any of this yourself.
 
 1. **Confirm the active Cloudflare account.** `accounts_list`. If you have one, set it active. If multiple, ask the user which.
-2. **Capture brand inputs for the Jotform form.** Ask the user two questions before building anything:
-   - "What colors do you want? Pick a primary text color and an accent color. You can answer in plain English ('black and gold', 'navy and orange') or paste hex codes ('#1a1a1a and #D4AF37'). Default is black text on white with a neutral gray accent if you skip."
-   - "Do you want a logo at the top of the form? Upload one (Claude can take an image path or URL), paste a hosted image URL, or say 'skip' for no logo."
-   Convert plain-English colors to hex internally (a small color name lookup is fine; for ambiguous answers, ask). Hold the resulting `accent_color`, `text_color`, and `logo_url` (may be null) values in memory for step 3.
-3. **Build the Jotform form.** Follow the procedure in `assets/jotform_form_template.md` end to end. That doc has the natural-language `create_form` prompt, the post-creation `fetch` introspection, and the `JOTFORM_FIELD_MAP` build steps. Outputs of this step:
-   - `form_id` saved to `.env` as `JOTFORM_FORM_ID`
-   - `JOTFORM_FIELD_MAP` written to `workers/wrangler.jotform.toml` `[vars]` as a JSON-stringified `qid -> purpose` object
-   - Optional follow-up `edit_form` calls to fix any fields, theme colors, or hidden fields the Jotform agent didn't pick up from the initial prompt.
-4. **Create (or find) the D1 database.** Idempotent: first call `d1_databases_list` filtered by name `showing_feedback`. If a database with that name already exists, capture its `database_id` and continue. Otherwise call `d1_database_create` with `{name: "showing_feedback"}` and let Cloudflare auto-pick the region (skip `primary_location_hint` unless the user has a strong preference, in which case ask). Capture the returned `database_id`.
-5. **Apply the schema migration.** Read `workers/migrations/001_showing_feedback.sql`. Run it via `d1_database_query` against the new database. The migration is wrapped in `CREATE TABLE IF NOT EXISTS` and `CREATE INDEX IF NOT EXISTS`, so re-running on an existing database is a no-op. Verify by running `SELECT COUNT(*) FROM showing_feedback` via `d1_database_query`; expect a numeric result (zero on a fresh db, the existing row count on a re-apply). If `d1_database_query` rejects multi-statement SQL, split the file on semicolons and run each statement separately.
-6. **Patch `workers/wrangler.jotform.toml`.** Replace `REPLACE_WITH_D1_ID_FROM_WRANGLER_D1_CREATE` with the captured `database_id`. Replace each `OWNER_*` placeholder with the value from the user's `.env`. Don't touch `JOTFORM_FIELD_MAP`; that was already set in step 3.
-7. **Generate `PREFERENCES_API_KEY` silently.** Run `python3 -c "import secrets; print(secrets.token_urlsafe(32))"` and capture the output. Append it to `.env` as `LOFTY_PREFERENCES_API_KEY=<value>` (use Edit, don't show the value to the user, don't echo it in a chat message). Hold the same value in memory for step 8 so it can be pushed to the Worker as a secret in one go. The user never has to see, type, or paste this token.
-8. **Push secrets.** `wrangler secret put LOFTY_API_KEY -c workers/wrangler.jotform.toml` (value from `.env`), then `wrangler secret put PREFERENCES_API_KEY -c workers/wrangler.jotform.toml` (value from step 7's in-memory token; pipe it via stdin so the user never sees it). Ask the user "Do you want to send the buyer recap email from your own verified domain via Resend, or have it go out through Lofty's send_email (default)?" If they pick Resend, push `RESEND_API_KEY` too. Otherwise skip; the Worker uses `LOFTY_API_KEY` for the recap automatically.
-9. **Deploy the Worker.** `cd workers && wrangler deploy -c wrangler.jotform.toml`. Capture the deployed URL.
-10. **Wire the Jotform webhook automatically.** Call `edit_form` with the saved `JOTFORM_FORM_ID` and a description like `"Set the form's webhook URL to <deployed_worker_url>. Replace any existing webhook on this form so all submissions go to that URL."` Confirm by re-running `fetch(<form_id>)` and checking the webhook field on the response. The user never opens Jotform's UI for this step.
-11. **Health check.** `curl <worker_url>/` should return `{"status":"ok","service":"jotform-to-lofty"}`.
-12. **Smoke test.** Prompt the user to submit one test entry on the form. Confirm the Lofty note lands and the D1 row count went from 0 to 1.
+2. **Clone the post-showing form template.** Walk the user through Jotform's import-from-URL flow:
+   - Sign into Jotform.
+   - Go to `https://www.jotform.com/workspace/`.
+   - Click **Create** (top-left) → **Form** → **Import Form** → **From a Web Page**.
+   - Paste this URL into the Enter URL field: `https://form.jotform.com/261294238566162` (the public template form URL; the kit's canonical template id is documented in the README).
+   - Click **Create Form**. Jotform clones the form into the user's account and redirects them to the Form Builder.
+   - Capture the new form id from the URL: `https://www.jotform.com/build/<FORM_ID>`. Save as `JOTFORM_FORM_ID` in `.env`.
+   - If the user gets an "Unauthorized request" error, the template owner has cloning blocked. Surface that as a setup error and route to the fallback procedure in `assets/jotform_form_template.md`.
+   - The cloned form's qids match the canonical `JOTFORM_FIELD_MAP` shape (`{"40":"first_reaction", "41":"daily_life_fit", ..., "51":"memory_notes"}`). The Worker's default `JOTFORM_FIELD_MAP` already encodes this shape, so for cloned forms you do NOT need a per-install map. Only derive a custom map if step 11 (smoke test) shows fields landing in the wrong D1 columns.
+   - **Optional theme override.** The template ships with a neutral gold accent on dark heading text. If the user wants their own brand colors or logo, ask: "Want to swap the accent color, text color, or add your logo at the top? You can paste hex codes ('navy and orange' or '#1a1a1a and #D4AF37') and a hosted image URL, or skip to keep the template defaults." If they answer with overrides, call `edit_form` on the cloned form id with a description like `"Update the form header HTML so the accent color is <accent_color>, the heading text color is <text_color>, and add an <img> tag at the top with src=<logo_url> and max-height 64px. Then update the form theme so the primary button color matches <accent_color>."` If they skip, do nothing.
+3. **Create (or find) the D1 database.** Idempotent: first call `d1_databases_list` filtered by name `showing_feedback`. If a database with that name already exists, capture its `database_id` and continue. Otherwise call `d1_database_create` with `{name: "showing_feedback"}` and let Cloudflare auto-pick the region (skip `primary_location_hint` unless the user has a strong preference, in which case ask). Capture the returned `database_id`.
+4. **Apply the schema migration.** Read `workers/migrations/001_showing_feedback.sql`. Run it via `d1_database_query` against the new database. The migration is wrapped in `CREATE TABLE IF NOT EXISTS` and `CREATE INDEX IF NOT EXISTS`, so re-running on an existing database is a no-op. Verify by running `SELECT COUNT(*) FROM showing_feedback` via `d1_database_query`; expect a numeric result (zero on a fresh db, the existing row count on a re-apply). If `d1_database_query` rejects multi-statement SQL, split the file on semicolons and run each statement separately.
+5. **Patch `workers/wrangler.jotform.toml`.** Replace `REPLACE_WITH_D1_ID_FROM_WRANGLER_D1_CREATE` with the captured `database_id`. Replace each `OWNER_*` placeholder with the value from the user's `.env`. The default `JOTFORM_FIELD_MAP` in the file already matches the cloned template's qid layout; leave it as-is unless the smoke test (step 10) flags a mismatch.
+6. **Generate `PREFERENCES_API_KEY` silently.** Run `python3 -c "import secrets; print(secrets.token_urlsafe(32))"` and capture the output. Append it to `.env` as `LOFTY_PREFERENCES_API_KEY=<value>` (use Edit, don't show the value to the user, don't echo it in a chat message). Hold the same value in memory for step 7 so it can be pushed to the Worker as a secret in one go. The user never has to see, type, or paste this token.
+7. **Push secrets.** `wrangler secret put LOFTY_API_KEY -c workers/wrangler.jotform.toml` (value from `.env`), then `wrangler secret put PREFERENCES_API_KEY -c workers/wrangler.jotform.toml` (value from step 6's in-memory token; pipe it via stdin so the user never sees it). Ask the user "Do you want to send the buyer recap email from your own verified domain via Resend, or have it go out through Lofty's send_email (default)?" If they pick Resend, push `RESEND_API_KEY` too. Otherwise skip; the Worker uses `LOFTY_API_KEY` for the recap automatically.
+8. **Deploy the Worker.** `cd workers && wrangler deploy -c wrangler.jotform.toml`. Capture the deployed URL.
+9. **Wire the Jotform webhook automatically.** Call `edit_form` with the saved `JOTFORM_FORM_ID` and a description like `"Set the form's webhook URL to <deployed_worker_url>. Replace any existing webhook on this form so all submissions go to that URL."` Confirm by re-running `fetch(<form_id>)` and checking the webhook field on the response. The user never opens Jotform's UI for this step.
+10. **Health check.** `curl <worker_url>/` should return `{"status":"ok","service":"jotform-to-lofty"}`.
+11. **Smoke test.** Prompt the user to submit one test entry on the form. Confirm the Lofty note lands and the D1 row count went from 0 to 1. If any field landed in the wrong D1 column, run `fetch(<form_id>)` to introspect the cloned form's qids, build a corrected `JOTFORM_FIELD_MAP`, push as a Worker variable, and redeploy.
 
 If any step fails, Claude reports the exact error and offers to roll back (drop the D1 database, undo the Jotform changes) or to switch to Power User Mode partway.
 
@@ -79,16 +85,29 @@ Run from the kit root unless noted. All commands are copy-paste safe.
 
 ### 1. Build the Jotform form
 
-Easiest path: use Jotform's UI to build a form with the questions in `assets/post_showing_questions.yaml`. Field-by-field:
+**Recommended: import the public template into your Jotform account.**
+
+1. Sign into Jotform.
+2. Go to `https://www.jotform.com/workspace/`.
+3. Click **Create** (top-left) → **Form** → **Import Form** → **From a Web Page**.
+4. Paste `https://form.jotform.com/261294238566162` into the Enter URL field. (The kit's canonical template id is documented in the README.)
+5. Click **Create Form**. Jotform copies the form into your account.
+6. Your new form id is in the URL: `https://www.jotform.com/build/<FORM_ID>`. Save it to `.env` as `JOTFORM_FORM_ID`.
+
+The cloned form already has all the questions, hidden fields, and the polished Card layout. The Worker's default `JOTFORM_FIELD_MAP` already matches the qid layout, so no per-install map is needed.
+
+If the import returns "Unauthorized request. You do not have access to this form," the template owner has cloning blocked. Use the fallback procedure in `assets/jotform_form_template.md` instead.
+
+**Optional brand swap.** The template ships with a neutral gold accent on dark heading text. To swap colors: open the form in Jotform's Form Designer, change the theme color, and edit the header HTML block (top question on the form) so the inline `color:` values match your brand. To add a logo, paste an `<img src="<your-hosted-logo-url>" style="max-height:64px;margin:0 auto 12px;display:block;">` line at the top of the header div.
+
+**Fallback: build the form from scratch.** If you don't have a Jotform account willing to clone shared templates, or if the template URL is unavailable, follow the from-scratch procedure in `assets/jotform_form_template.md`. This path uses Jotform's `create_form` natural-language agent and produces a Classic Form with a few rough edges that need follow-up edits. Field list and unique names:
 
 - 6 rating questions (1-5 scale), Unique Names: `first_reaction`, `daily_life_fit`, `neighborhood_rating`, `condition_rating`, `value_rating`, `short_list`.
 - 2 text questions (long-text), Unique Names: `standout_text`, `memory_notes`.
 - 2 multi-select questions, Unique Names: `loved_tags`, `dealbreaker_tags`. Use the starter tag lists from `assets/post_showing_questions.yaml`.
 - 4 hidden fields prefilled by the showing link: `lead_id`, `propertyAddress`, `showingDate`, `client_name`. Plus a `buyer_email` field if you want the recap email.
 
-Set Unique Names exactly as listed; the Worker keys off them.
-
-**Branding.** The YAML's `header_html` block ships with a neutral gold accent (`#D4AF37`) and dark heading text. Edit those hex codes to your brand colors before pasting into Jotform's header HTML, or skip and edit the form's appearance later in Jotform's Form Designer. To add a logo, paste an `<img src="<your-hosted-logo-url>" style="max-height:64px;margin:0 auto 12px;display:block;">` line at the top of the header div, or upload a logo image in Jotform's Form Designer > Header section.
+Set Unique Names exactly as listed; the Worker keys off them when no `JOTFORM_FIELD_MAP` is configured.
 
 ### 2. Create the D1 database
 

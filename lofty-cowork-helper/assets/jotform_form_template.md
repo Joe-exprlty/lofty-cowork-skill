@@ -1,6 +1,13 @@
-# Jotform Form Template (Easy Mode)
+# Jotform Form Template (FALLBACK procedure - v1.5 create_form path)
 
-This file is read at install time by the Easy Mode Tier 2 setup flow. It contains the natural-language prompt Claude passes to Jotform MCP's `create_form`, the post-creation introspection steps, and the expected shape of `JOTFORM_FIELD_MAP` (the env var the Worker reads to route submissions to the right D1 column).
+> **Heads up.** As of v1.6 this is the **fallback** path, not the primary one. The primary v1.6 setup uses the **template-clone** flow described in `references/workers_setup.md` (clone a polished public template URL into your Jotform account in one click). Use this `create_form` procedure only if:
+> - The template URL is unavailable.
+> - Your Jotform account can't clone shared templates.
+> - You have a strong reason to build the form from scratch.
+>
+> The `create_form` agent ships Classic Forms with mediocre visual polish, normalizes hidden field names to lowercase, and does not reliably apply theme colors. It works, but expect to spend 5-10 minutes on follow-up `edit_form` calls. The clone path takes one click.
+
+This file is read at install time by the Easy Mode Tier 2 setup flow when fallback is selected. It contains the natural-language prompt Claude passes to Jotform MCP's `create_form`, the post-creation introspection steps, and the expected shape of `JOTFORM_FIELD_MAP` (the env var the Worker reads to route submissions to the right D1 column).
 
 This file is NOT loaded by the Worker at runtime. It's a setup-time artifact.
 

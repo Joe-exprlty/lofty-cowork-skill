@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [1.6.0] - 2026-05-10
+
+Tier 2 polish release. Switches Easy Mode form creation from `create_form` natural-language generation to a one-pass import of a polished public template. Eliminates the Classic Form / lowercase field name / theme color drift that the v1.5 `create_form` path produced. The `create_form` flow stays in the kit as a documented fallback. No Worker code changes; no D1 schema changes. v1.5 installs keep running unchanged; new installs land on the cleaner template-clone path.
+
+### Added
+- Public Jotform template at form id `261294238566162`. Polished Card Form, all hidden fields cleared, header HTML uses Jotform substitution tokens, no agent-specific contact info anywhere in the form. Ships pre-themed with a neutral gold accent on dark heading text. Installable via Jotform's import-from-URL flow at `https://www.jotform.com/workspace/` → Create → Form → Import Form → From a Web Page → paste `https://form.jotform.com/261294238566162` → Create Form.
+
+### Changed
+- `lofty-cowork-helper/references/workers_setup.md`. Easy Mode walkthrough step 2 is now the template-import flow, not the `create_form` call. The branding question is now an optional theme override since the template ships pre-themed. Power User Mode step 1 documents the import-from-URL flow as the recommended path with the from-scratch build as the fallback. Total Easy Mode steps trimmed from 12 to 11.
+- `lofty-cowork-helper/assets/jotform_form_template.md`. Re-headed and re-framed as the v1.5 `create_form` fallback procedure. Used only when the template-import path is unavailable (no Jotform account willing to import shared templates, the template owner has cloning blocked, or the user has a strong reason to build from scratch).
+- `lofty-cowork-helper/SKILL.md`. B1.8 Tier 2 picker references the template-clone path in the Easy Mode summary. Theme overrides are flagged as optional rather than required.
+
+### Notes
+- The canonical template form lives in the public skill maintainer's Jotform account. If the template owner enables Prevent Cloning on the form (form Settings) or Do Not Allow My Forms to Be Cloned by Other Users on the account (account Privacy), the import flow returns "Unauthorized request. You do not have access to this form" and the user is routed to the fallback procedure. Maintainers should keep both toggles off.
+- Cloned forms preserve qids 40-51 used by the canonical `JOTFORM_FIELD_MAP`. The Worker's default map already encodes this shape, so per-install map derivation is no longer required for template-clone installs. The fallback `create_form` path still derives a per-install map.
+- Tier 3 (showing-reminder SMS Worker) is unchanged; still pinned for a future v1.6.x or v1.7 release. Same goes for Stage C (`schedule-showing` orchestration sub-skill).
+
+---
+
 ## [1.5.0] - 2026-05-09
 
 Phase 2 Stage B: Tier 2 post-showing feedback Worker. Ships the `jotform-to-lofty` Cloudflare Worker, the `showing_feedback` D1 schema, and an Easy Mode setup walkthrough that uses Cloudflare MCP and Jotform MCP to bring up the entire stack in about five minutes. Recipients deploy their own Worker on the Cloudflare free tier; no paid plan required for v1.5. Verified end-to-end on production (Joe's `261040658235049` form) with a real lead, real D1 row, and real Resend recap.

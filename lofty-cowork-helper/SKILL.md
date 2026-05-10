@@ -208,14 +208,14 @@ Before picking a mode, check:
 
 Use the AskUserQuestion tool. Two options:
 
-- **Easy Mode (recommended).** Claude builds the Jotform form via MCP, creates and migrates D1 via Cloudflare MCP, fills `wrangler.jotform.toml`, generates `PREFERENCES_API_KEY` silently, pushes secrets, deploys the Worker, wires the Jotform webhook, and runs the smoke test. About 5 minutes. The user only answers two questions: brand colors and an optional logo, plus whether they want Resend.
-- **Power User Mode.** The user runs the shell commands and clicks the Jotform UI themselves. About 15 minutes. Useful for users who want to see exactly what is happening or who do not want the MCPs. Claude stays engaged and answers questions inline.
+- **Easy Mode (recommended).** Claude hands the user a one-click Jotform template-clone link, captures the cloned form id, creates and migrates D1 via Cloudflare MCP, fills `wrangler.jotform.toml`, generates `PREFERENCES_API_KEY` silently, pushes secrets, deploys the Worker, wires the Jotform webhook, and runs the smoke test. About 5 minutes. The user clicks one link in Jotform; everything else runs in chat. Brand colors and a logo are optional theme overrides since the template ships pre-themed.
+- **Power User Mode.** The user clones the template (or builds the form from scratch), then runs the shell commands themselves. About 15 minutes. Useful for users who want to see exactly what is happening or who do not want the MCPs. Claude stays engaged and answers questions inline.
 
 If neither MCP is connected and the user does not want to install them, default to Power User Mode without asking.
 
 ### Step 3: Run the chosen path
 
-- **Easy Mode:** follow steps 1 through 12 of the "Easy Mode walkthrough" in `references/workers_setup.md` verbatim. Step 2 of that walkthrough is the branding step (locked: do not skip). Ask for primary text color, accent color, and an optional logo URL even if the user says "I don't care, just go." The defaults (black text, gold accent, no logo) are fine if they accept them; the form must still get a coherent look. After step 12, hand off in one line: "Tier 2 is live. Submissions will land on the lead's timeline as a Lofty note and in D1."
+- **Easy Mode:** follow steps 1 through 11 of the "Easy Mode walkthrough" in `references/workers_setup.md` verbatim. Step 2 is the template-clone step: paste the user the Jotform template URL, ask them to click "Use Template," and capture the resulting form id. Theme override is optional, not required - the template ships pre-themed. After step 11, hand off in one line: "Tier 2 is live. Submissions will land on the lead's timeline as a Lofty note and in D1."
 - **Power User Mode:** point the user at the "Power User Mode walkthrough" section of `references/workers_setup.md`. As they work through each numbered step, surface the relevant snippet, answer their questions inline, and read back any error output to diagnose. Don't run their commands for them; they picked Power User Mode so they could drive.
 
 ### When something fails
@@ -322,7 +322,7 @@ Each addition has a pattern in the full guide. Use the same `_request` plumbing 
 - `assets/CLAUDE.md.template` - Cowork context file template (gets customized in step 7 of Easy Mode)
 - `assets/ics_builder.py` - buyer-facing .ics generator for the lofty and skip calendar paths
 - `assets/post_showing_questions.yaml` - the recommended question pack the agent forks at setup; drives the post-showing JotForm and the lead-update mapping
-- `assets/jotform_form_template.md` - read at runtime by Easy Mode Tier 2 setup; the natural-language `create_form` prompt and `JOTFORM_FIELD_MAP` build procedure
+- `assets/jotform_form_template.md` - FALLBACK procedure for Easy Mode Tier 2 setup; the v1.5 natural-language `create_form` prompt and `JOTFORM_FIELD_MAP` build procedure, used only when the v1.6 template-clone path is unavailable
 - `scripts/setup_check.py` - quick sanity check script for advanced users
 - `scripts/refresh_leads_index.py` - rebuild `data/leads_index.json` for the file-fallback lead lookup
 - `scripts/test_worker_parsers.mjs` - smoke test for the Tier 2 Worker's submission parser; run with `node scripts/test_worker_parsers.mjs`

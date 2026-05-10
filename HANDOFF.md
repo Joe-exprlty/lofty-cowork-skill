@@ -8,71 +8,89 @@ This file gets a new Claude Cowork session up to speed on the **Phase 2** build 
 
 > Joe opened a new prompt and typed "Read Handoff.md and continue conversation." Follow this section to pick up exactly where we left off. Do NOT recap the prior session's work back to Joe; he was there. Get to the point.
 
-**Where we left off (May 8, 2026, second session of the day):** v1.5 is mid-build. v1.4.1 is still the latest tagged release on GitHub. The May 8 second session resolved one open decision and landed five concrete artifacts on disk in the public skill. Joe will commit and push everything in this snapshot before the next session opens, so origin/main will have the new files when you arrive.
+**Where we left off (May 10, 2026):** v1.6.0 is shipped (tag `v1.6.0` on origin/main as of May 10). The release lands the template-clone path for Easy Mode Tier 2 setup. Joe published the polished public template at form id `261294238566162`, the docs walk users through Jotform's import-from-URL wizard (Workspace → Create → Form → Import Form → From a Web Page → paste `https://form.jotform.com/261294238566162` → Create Form), and the v1.5 `create_form` natural-language flow is now the documented fallback for users who cannot import shared templates. No Worker code changes; Tier 2 architecture and D1 schema are unchanged from v1.5.
 
-**What got built in the second May 8 session (already on disk, not yet shipped to GitHub at the time of this handoff write):**
-
-- `lofty-cowork-helper/workers/jotform_to_lofty_worker.js` ported from `saling-automation`. Joe-specifics replaced with env-driven `OWNER_*` vars. New `JOTFORM_FIELD_MAP` env var routes submissions by Jotform qid when populated, falls back to alias matching for backward compat with Joe's pre-migration form. Resend is now opt-in; if `RESEND_API_KEY` is unset the recap email goes through Lofty's `POST /v1.0/message/email/send` endpoint instead.
-- `lofty-cowork-helper/workers/migrations/001_showing_feedback.sql` ported verbatim, only the path comment in the header changed.
-- `lofty-cowork-helper/workers/wrangler.jotform.toml` templated. Database id, owner identity, and `JOTFORM_FIELD_MAP` are placeholders. Resend reframed as opt-in with the Lofty fallback as default.
-- `lofty-cowork-helper/references/workers_setup.md` is the v1.5 deploy runbook. Leads with an Easy Mode vs Power User Mode picker. Easy Mode walkthrough is the 12-step Cloudflare MCP + Jotform MCP + wrangler sequence. Power User Mode is the manual shell-and-clicks version. All five Tier 2 optimizations (form built programmatically with brand inputs, Resend optional, Cloudflare MCP for D1, auto-generated `PREFERENCES_API_KEY`, auto-wired Jotform webhook) are documented in the Easy Mode steps.
-- `lofty-cowork-helper/assets/jotform_form_template.md` is a new asset Easy Mode reads at runtime. Contains the natural-language `create_form` prompt template, post-creation `fetch` introspection, and the `JOTFORM_FIELD_MAP` build procedure. Captures brand inputs (accent color, text color, optional logo URL) before form creation per the locked branding step.
-- `lofty-cowork-helper/assets/post_showing_questions.yaml` updated. `header_html` now uses `{{ACCENT_COLOR}}`, `{{TEXT_COLOR}}`, and `{{LOGO_HTML}}` tokens; `default_accent_color` and `default_text_color` fields hold sensible fallbacks (gold + dark heading text) for the "user accepts defaults" path.
-- `lofty-cowork-helper/assets/env-template` updated. Added optional `OWNER_WEBSITE` line and reframed `RESEND_API_KEY` as optional with a clear description of what falls back to what.
-- `lofty-cowork-helper/scripts/test_worker_parsers.mjs` is a new smoke test. Synthesizes Jotform-shaped POST bodies and walks them through the Worker's parser refactor. Covers four scenarios: legacy form (alias-only), fresh form without map, fresh form with map, and a renamed-fields case where only the qid map saves you. All 32 assertions pass.
-
-**Path B was chosen for the form-import question** (one codebase across the public skill and Joe's production). The Worker on disk in the public skill is the same code that will replace `saling-automation/worker/jotform_to_lofty_worker.js` once the production migration runs. The production migration is still pending; Joe's Worker has not been touched yet.
+The remaining v1.6 ladder item, the Tier 3 SMS Worker port, did not ship in this release. It is now pinned for v1.6.1 or v1.7 depending on whether Joe wants to bundle other Tier 3 work.
 
 **Do these checks silently first (do NOT narrate them to Joe):**
 
 1. Verify `~/Code/saling-automation/` is mounted via `mcp__cowork__request_cowork_directory`. If not, request it.
-2. Run `git log --oneline -5` on `~/Code/lofty-cowork-skill`. There should be a recent commit landing the v1.5 mid-build files (`lofty-cowork-helper/workers/`, `lofty-cowork-helper/references/workers_setup.md`, `lofty-cowork-helper/assets/jotform_form_template.md`, `lofty-cowork-helper/scripts/test_worker_parsers.mjs`, plus updates to `lofty-cowork-helper/assets/post_showing_questions.yaml` and `lofty-cowork-helper/assets/env-template`). Confirm the working tree is clean.
-3. Skim these files end-to-end so you know what's there:
-   - `lofty-cowork-helper/references/workers_setup.md`
-   - `lofty-cowork-helper/assets/jotform_form_template.md`
-   - `lofty-cowork-helper/workers/jotform_to_lofty_worker.js` (most of the actual code logic for v1.5)
-   - `lofty-cowork-helper/scripts/test_worker_parsers.mjs` and confirm it still passes by running `node lofty-cowork-helper/scripts/test_worker_parsers.mjs`
-4. Read the "v1.5 ladder remaining" section of THIS file so you know what comes next.
+2. Run `git log --oneline -5` on `~/Code/lofty-cowork-skill`. Confirm `v1.6.0` tag is on the latest commit and the working tree is clean.
+3. Run `node lofty-cowork-helper/scripts/test_worker_parsers.mjs`. Should print "All parser smoke tests passed."
+4. Read the "v1.7 ladder" section below so you know what comes next.
 
-**Then, as your FIRST user-facing message, ask Joe this:**
+**Then, as your FIRST user-facing message, ask Joe what to work on next:**
 
-> Picking up at v1.5. Three things left before v1.5 ships: B1.8 (the "set up Tier 2" picker in SKILL.md that routes Easy Mode vs Power User Mode), the production migration (rebuild your Jotform form, swap your saling-automation Worker to the new code, validate one end-to-end submission), and the v1.5 release commit + tag. Recommend tackling in that order since the picker is needed before the production migration can run end-to-end. Want to push into B1.8 next?
+> v1.6 is shipped (tagged 2026-05-10, template-clone path live in Easy Mode). Three viable next directions: v1.6.1 / v1.7 Tier 3 SMS Worker port, Stage C (schedule-showing orchestration sub-skill), or a real end-to-end test of the v1.6 Easy Mode flow with a fresh Jotform account. Tier 3 SMS is the biggest user-visible payoff; Stage C streamlines your daily workflow; the e2e test catches any clone-flow papercuts before another agent hits them. Which way?
 
-Use the AskUserQuestion tool for this so Joe gets a clean choice picker with options like "Yes, push into B1.8," "Run the production migration first," "Pause and review," or "Other."
+Use AskUserQuestion with options like "Push into Tier 3 SMS Worker (v1.7)," "Push into Stage C (schedule-showing sub-skill)," "End-to-end test v1.6 Easy Mode with a fresh account," or "Other."
 
 ---
 
-## v1.5 ladder remaining
+## v1.6 SHIPPED (2026-05-10)
 
-Concrete tasks the next session needs to finish before v1.5 ships:
+Tag `v1.6.0` on origin/main. What landed:
 
-1. **B1.8: Tier 2 picker in SKILL.md.** Add a section to `lofty-cowork-helper/SKILL.md` that triggers on "set up Tier 2," "set up post-showing feedback," "deploy the Worker," etc. Asks Joe (or any user running the skill) "Easy Mode (Claude does it for you) or Power User (you run the commands)?" and routes to the appropriate path documented in `references/workers_setup.md`. Easy Mode flow follows steps 1-12 of the Easy Mode walkthrough verbatim; Power User Mode flow points the user at the manual section and answers questions inline.
+- Public Jotform template at form id `261294238566162` in Joe's Jotform account. Polished Card Form, all hidden fields cleared of defaults, header HTML uses Jotform substitution tokens, no agent-specific contact info anywhere. Imported into other accounts via Jotform's Workspace → Create → Form → Import Form → From a Web Page flow, pasting `https://form.jotform.com/261294238566162` as the source URL. "Prevent Cloning" is OFF on the form per maintainer responsibility.
+- `lofty-cowork-helper/references/workers_setup.md`. Easy Mode walkthrough step 2 is now the template-import flow; the branding question is an optional theme override; total Easy Mode steps trimmed from 12 to 11. Power User Mode step 1 documents the import-from-URL flow as recommended with the from-scratch build as fallback.
+- `lofty-cowork-helper/assets/jotform_form_template.md` re-headed and re-framed as the v1.5 fallback procedure.
+- `lofty-cowork-helper/SKILL.md` B1.8 picker updated to reference template-clone in the Easy Mode summary; theme overrides flagged optional.
+- `README.md` adds a Tier 2 template form section under Maintaining the skill, listing maintainer responsibilities (keep form Active, Prevent Cloning OFF, account Privacy clone setting OFF, qid layout stable, no agent-specifics).
+- `CHANGELOG.md` entry for v1.6.0.
 
-2. **Production migration.** Joe's path B commit. Sequence:
-   - Use Jotform MCP `create_form` to rebuild Joe's production post-showing form following `assets/jotform_form_template.md` (with Joe's actual brand inputs: black + gold, Saling Homes logo URL).
-   - Run `fetch(form_id)` and build `JOTFORM_FIELD_MAP` for the new form.
-   - Copy the public skill's Worker code into `saling-automation/worker/jotform_to_lofty_worker.js`. Add Joe's specifics back (his existing Resend domain, his email signature, etc.) via the env-driven OWNER_* vars in `saling-automation/worker/wrangler.jotform.toml`. Joe's production keeps Resend (he's already paying), so don't disable it.
-   - Push `JOTFORM_FIELD_MAP` to Joe's production wrangler config.
-   - Update Joe's `.env` with the new `JOTFORM_FORM_ID`.
-   - Deploy the new Worker to Joe's production.
-   - Wire Jotform webhook from the new form to Joe's production Worker URL.
-   - Submit one test entry. Confirm the Lofty note lands, the D1 row count goes up by one, and the recap email arrives via Resend at the email Joe submitted.
-   - If everything looks right, archive Joe's old Jotform form (don't delete; keep for rollback).
-   - **Historical D1 data stays put.** All existing rows key off `lead_id`, not field IDs. The `loved_tags` / `dealbreaker_tags` columns continue to hold the JSON arrays they always have. Future rows from the new form get the same treatment.
+**Maintainer state on Joe's Jotform account:**
+- Public template form: `261294238566162` (Card Form, scrubbed)
+- Joe's production form (untouched by this release): `261040658235049`
 
-3. **v1.5 release.** Update `CHANGELOG.md` with a v1.5.0 entry covering everything in the "What got built" section above. Repackage `lofty-cowork-helper.skill` from the kit-creator skill at `/sessions/<your-session>/mnt/.claude/skills/skill-creator`. Commit the CHANGELOG + repackaged .skill, tag `v1.5.0`, push to origin with `--tags`.
-
-That's it for v1.5. Stage C (the orchestration sub-skill) and v1.6/v1.7 (Tier 3) come later.
+The Tier 3 SMS Worker port from `saling-automation/worker/showing_sms_worker.js` did NOT ship in v1.6. It is the highest-priority remaining item for the next ladder.
 
 ---
 
-## Status snapshot (May 8, 2026, second session)
+## v1.5 SHIPPED (2026-05-09)
 
-- v1.4.1 is the latest tagged release on GitHub. Public skill commit `f027a87` was on origin/main at the start of the second session. HANDOFF.md and v1.5 mid-build files were uncommitted at the time of writing this handoff; Joe will commit them shortly after.
+Tag `v1.5.0` on commit `b8374e3` on origin/main. What landed:
+
+- `lofty-cowork-helper/workers/jotform_to_lofty_worker.js` ported from `saling-automation`. Joe-specifics replaced with env-driven `OWNER_*` vars. `JOTFORM_FIELD_MAP` env var routes submissions by Jotform qid when populated, falls back to alias matching. Resend is opt-in; if `RESEND_API_KEY` is unset the recap email goes through Lofty's `POST /v1.0/message/email/send` endpoint instead. May 9 bugfix: case-insensitive lookup for hidden field names (`propertyaddress`, `showingdate`, `propertystats`) since Jotform's create_form agent normalizes names to lowercase.
+- `lofty-cowork-helper/workers/migrations/001_showing_feedback.sql` ported verbatim.
+- `lofty-cowork-helper/workers/wrangler.jotform.toml` templated.
+- `lofty-cowork-helper/references/workers_setup.md` is the v1.5 deploy runbook. Easy Mode + Power User Mode walkthroughs. May 9 update: Node prereq guidance (Homebrew / .pkg / Windows / Linux) and `npx wrangler` recommendation.
+- `lofty-cowork-helper/assets/jotform_form_template.md` for the create_form path.
+- `lofty-cowork-helper/assets/post_showing_questions.yaml` parameterized with `{{ACCENT_COLOR}}`, `{{TEXT_COLOR}}`, `{{LOGO_HTML}}` tokens.
+- `lofty-cowork-helper/assets/env-template` updated. Optional `OWNER_WEBSITE`. Resend reframed as optional.
+- `lofty-cowork-helper/scripts/test_worker_parsers.mjs` smoke test. 32 assertions, all green.
+- B1.8 Tier 2 picker section in `lofty-cowork-helper/SKILL.md`. Triggers on "set up Tier 2," "deploy the Worker," etc. Routes Easy Mode vs Power User Mode, runs silent prereq checks (LOFTY_API_KEY, CLOUDFLARE_API_TOKEN, Node, wrangler-or-npx, Jotform account, Cloudflare MCP, Jotform MCP).
+
+**Production state on Joe's Mac:**
+- Form ID: `261040658235049` (existing polished Card Form, with `memory_notes` added as qid 51 on May 9)
+- Worker: deployed at `https://jotform-to-lofty.joe-2c5.workers.dev`, version `00913c11-9b54-4b87-97b6-479da1bced7a` or later
+- D1: `2d6dd086-c086-457c-a03e-11500da56f08`, two rows from May 9 smoke tests
+- `JOTFORM_FIELD_MAP`: `{"40":"first_reaction","41":"daily_life_fit","42":"neighborhood_rating","43":"condition_rating","44":"value_rating","45":"short_list","46":"standout_text","49":"loved_tags","50":"dealbreaker_tags","51":"memory_notes"}`
+- Obsolete new form `261280371447052` created during the session is dormant (webhook removed); Joe can delete it whenever.
+
+---
+
+## v1.7 ladder
+
+Three viable next directions. They are independently scoped; pick whichever has the highest leverage for the moment.
+
+1. **Tier 3 SMS Worker (highest user-visible payoff).** Port `saling-automation/worker/showing_sms_worker.js` (Durable Object alarms, no cron, 162ms alarm precision validated in production) into `lofty-cowork-helper/workers/showing_sms_worker.js`. Strip Joe-specifics. Templated `wrangler.toml` template under `workers/wrangler.showing-sms.toml`. Requires Cloudflare Workers Paid plan ($5/mo) for Durable Objects, so the picker in `SKILL.md` should add a Workers Paid prereq check before routing to Easy Mode. Update `references/workers_setup.md` with a "Tier 3 setup" section parallel to Tier 2.
+
+2. **Stage C: schedule-showing orchestration sub-skill.** Port `.claude/skills/schedule-showing/SKILL.md` from `saling-automation` into `lofty-cowork-helper/`. Strip Joe-specifics. Drives multi-stop showing scheduling end-to-end (resolve client, parse times, prepare_showing per stop, calendar invite, note, SMS verification). Reduces a 10-minute multi-step workflow to a single chat sentence. Adds a Phase 2 onboarding step to the public skill's Easy Mode setup.
+
+3. **End-to-end smoke of v1.6 Easy Mode with a fresh Jotform account.** Real-world test of the import-from-URL flow with a brand new Jotform account that has never seen the template. Confirms (a) the import wizard accepts `https://form.jotform.com/261294238566162` without an Unauthorized error, (b) the cloned form preserves the qid 40-51 layout the canonical `JOTFORM_FIELD_MAP` assumes, (c) the optional theme override edit_form call still works, (d) the rest of Easy Mode runs unchanged through to a green smoke test. Cheapest direction; surfaces any v1.6 papercuts before strangers hit them.
+
+Recommend (3) first since it locks in the v1.6 release, then (1) since Tier 3 is the biggest functional jump remaining.
+
+---
+
+## Status snapshot (May 10, 2026)
+
+- **v1.6.0 SHIPPED.** Tag on origin/main. Template-clone path live. CHANGELOG updated. Public template form `261294238566162` is published in Joe's Jotform account with Prevent Cloning OFF.
 - Phase 2 Stage A is COMPLETE through v1.4.1. Showing primitives, leads index, post-showing question pack, full read coverage of the API surface, Content-Type bug fix, find_client fallback for unsynced contacts.
-- Phase 2 Stage B v1.5 (Tier 2: jotform-to-lofty Worker + D1 + optimized setup) is mid-build. All file artifacts are on disk in the public skill. The B1.8 picker, the production migration, and the release-tag pass are pending.
-- Phase 2 Stage B v1.6 (Tier 3 SMS Worker) and v1.7 (Tier 3 polish: leads-index, possibly short-links) are not started. They sit behind v1.5 by design (see locked decision #9 below).
-- Phase 2 Stage C (`schedule-showing` orchestration sub-skill, Phase 2 onboarding in Easy Mode) not started.
+- Phase 2 Stage B v1.5 is COMPLETE. Tier 2 jotform-to-lofty Worker + D1 + Easy Mode picker shipped. Joe's production is on it.
+- Phase 2 Stage B v1.6 is COMPLETE for the template-clone path. Tier 3 SMS Worker portion did NOT ship in v1.6; it remains the headline item for the next ladder.
+- Phase 2 Stage B v1.7 is NOT STARTED. Tier 3 SMS Worker (top priority) plus Tier 3 polish (leads-index Worker free tier, optional once v1.4.1 fallback is in place; short-links Worker free tier, may be cut entirely per locked decision #11).
+- Phase 2 Stage C (`schedule-showing` orchestration sub-skill, Phase 2 onboarding in Easy Mode) NOT STARTED.
 
 If you're a new Claude session: do NOT redesign Phase 2 from first principles. The reference implementation is `~/Code/saling-automation/`. Phase 2 of the public skill is a port + strip + parameterize, not a fresh design. The TIERING decision (#9 below) controls WHICH pieces port and in what order; it does not change the underlying architecture.
 
@@ -131,7 +149,7 @@ Decided across the May 7 and two May 8 design sessions. Do not revisit without s
 6. **Calendar provider: Google Calendar at v1.** Four-provider router parked as a "future feature for clients who want options."
 7. **Hosting model: self-hosted at v1.** Each agent deploys their own Workers + D1.
 8. **Twilio is OUT for v1.** Lofty's SMS is reliable enough for the showing reminders.
-9. **Tiered rollout, not "all four Workers in v1.5".** v1.5 = Tier 2 (jotform-to-lofty Worker + D1). v1.6 = Tier 3 SMS Worker. v1.7 = Tier 3 polish.
+9. **Tiered rollout, not "all four Workers in v1.5".** v1.5 = Tier 2 (jotform-to-lofty Worker + D1). v1.6 = template-clone path for Tier 2 Easy Mode (shipped 2026-05-10). v1.7 = Tier 3 SMS Worker. v1.7.x or later = Tier 3 polish.
 10. **Workers Paid plan is ONLY for Tier 3 SMS.** $5/mo Cloudflare Workers Paid is required for Durable Objects in the showing-sms Worker. Every other Worker runs on the free tier.
 11. **Short-links Worker is a candidate for cut.** Will revisit at v1.7 design.
 12. **Branding step before form creation (NEW, May 8 second session).** When Easy Mode builds the Jotform form via MCP, it MUST first ask the user for brand colors (text + accent) and an optional logo (file path or URL). Render the YAML's `header_html` with those colors substituted in, prepend an `<img>` tag if a logo URL was provided, and follow up with `edit_form` to push matching theme colors. Joe's production form is black + gold with the Saling Homes logo; that branding is what makes the form feel like part of the agent's business rather than generic. Documented in `assets/jotform_form_template.md` and step 2 of `references/workers_setup.md` Easy Mode walkthrough.
@@ -142,31 +160,25 @@ Decided across the May 7 and two May 8 design sessions. Do not revisit without s
 ## Stage status
 
 ### Stage A: COMPLETE through v1.4.1.
-### Stage B v1.5: in progress.
+### Stage B v1.6: COMPLETE (shipped 2026-05-10 as v1.6.0) for the template-clone path. Tier 3 SMS Worker NOT included; remains pinned for v1.7.
+
+Template-clone path landed. Public template form 261294238566162 in Joe's Jotform account, scrubbed, Prevent Cloning OFF. Easy Mode and Power User Mode walkthroughs in `references/workers_setup.md` updated. `assets/jotform_form_template.md` re-headed as the v1.5 fallback. `SKILL.md` B1.8 picker updated. `README.md` adds maintainer responsibilities for the template form.
+
+### Stage B v1.5: COMPLETE (shipped 2026-05-09 as v1.5.0).
 
 B1.1-B1.4 (read all the production source files) DONE.
 B1.5 (port Worker, strip Joe-specifics, write templated wrangler config) DONE.
-B1.6 (write workers_setup.md with Easy + Power User paths) DONE.
-B1.7 (five Tier 2 optimizations) DONE in code + runbook. The five optimizations:
-  1. Build the Jotform form programmatically. DONE; see `assets/jotform_form_template.md` for the runtime procedure and `assets/post_showing_questions.yaml` for the parameterized header_html.
-  2. Drop Resend as a setup requirement; Lofty fallback. DONE in Worker code.
-  3. Cloudflare MCP for D1, wrangler only for Worker code. DONE in runbook.
-  4. Auto-generate `PREFERENCES_API_KEY`. DONE in runbook (silent generation step).
-  5. Auto-wire Jotform webhook. DONE in runbook (`edit_form` natural-language call).
-
-B1.8 (Tier 2 picker in SKILL.md) PENDING. Next task.
-Production migration PENDING. Runs after B1.8.
-v1.5 release tag PENDING. Runs after production migration.
-
-### Stage B v1.6: NOT STARTED.
-
-The Tier 3 SMS Worker (showing-sms with Durable Object alarms). Requires Workers Paid plan. Stripped equivalents of `saling-automation/worker/showing_sms_worker.js` and `wrangler.toml`.
-
-**v1.6 also adds: template-form-clone path for the post-showing form (NEW, May 9 session).** The v1.5 `create_form` natural-language approach in `assets/jotform_form_template.md` ships in v1.5 and works, but produces Classic Forms with mediocre visual polish. The Jotform create_form agent (a) defaults to Classic Form layout instead of Card Form, (b) auto-renames hidden fields to lowercase even when the prompt asks for camelCase, (c) does not reliably apply theme colors, fonts, or button styling, and (d) sometimes drops questions on initial create_form so a follow-up edit_form pass is required. v1.6 should switch Easy Mode to a "clone this Jotform template" flow: Joe publishes a polished Card Form template (Saling-specifics scrubbed) under his Jotform account, the kit's Easy Mode walkthrough points users at a `https://www.jotform.com/use-template/<template_id>` URL, the user clicks once to clone it into their account, the kit reads the cloned form's id and derives `JOTFORM_FIELD_MAP` from it (qids are stable across clones). Eliminates the create_form fragility, locks in the Card layout, and gives every install Joe's polished baseline on day 1. The v1.5 create_form path becomes a documented fallback for users without a Jotform account willing to clone shared templates. Implementation tasks: scrub Saling-specifics from form 261040658235049, mark it as a Jotform Public Template, document the clone flow in `references/workers_setup.md`, simplify the branding step to "optional theme override" since the template ships pre-themed, update the v1.5 `assets/jotform_form_template.md` to be the fallback procedure not the primary one. Reference the May 8-9 production migration history for why this matters.
+B1.6 (write workers_setup.md with Easy + Power User paths) DONE. Node prereq added in May 9 patch.
+B1.7 (five Tier 2 optimizations) DONE.
+B1.8 (Tier 2 picker in SKILL.md) DONE 2026-05-09.
+Production migration DONE 2026-05-09. Joe's production is on the v1.5 Worker pointed at his existing form 261040658235049 (with memory_notes added as qid 51).
+v1.5 release tag DONE 2026-05-09 (tag `v1.5.0` on commit `b8374e3` on origin/main).
 
 ### Stage B v1.7: NOT STARTED.
 
-Tier 3 polish: leads-index Worker (free tier, optional once v1.4.1 fallback is in place) and short-links Worker (free tier, may be cut entirely per locked decision #11).
+Top priority: Tier 3 SMS Worker (`showing-sms` with Durable Object alarms). Requires Cloudflare Workers Paid plan ($5/mo). Port `saling-automation/worker/showing_sms_worker.js` and `worker/wrangler.toml`, strip Joe-specifics, parameterize, add a "Tier 3 setup" section parallel to Tier 2 in `references/workers_setup.md`, add a Workers Paid prereq check to the Tier 3 picker in `SKILL.md`.
+
+Tier 3 polish (lower priority): leads-index Worker (free tier, optional once v1.4.1 fallback is in place) and short-links Worker (free tier, may be cut entirely per locked decision #11).
 
 ### Stage C: NOT STARTED. Target v1.7 or later.
 

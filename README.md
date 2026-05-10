@@ -105,6 +105,22 @@ When Lofty changes a documented behavior:
 
 A 6-month re-test cadence is reasonable. Lofty has been roughly stable, but quirks #2 and #3 may eventually be silently fixed; if they are, this skill should know.
 
+### Tier 2 template form (v1.6+)
+
+The Tier 2 Easy Mode setup imports a polished public Jotform template into each new install via Jotform's import-from-URL flow. The canonical template form lives in the maintainer's Jotform account.
+
+- **Template form id:** `261294238566162`
+- **Public form URL (the URL recipients paste into the Jotform import wizard):** `https://form.jotform.com/261294238566162`
+- **Form Builder URL (maintainer-only):** `https://www.jotform.com/build/261294238566162`
+
+Maintainer responsibilities:
+
+1. Keep the template form Active / Enabled in Jotform. A disabled form returns "Form is no longer available" to importers.
+2. Keep "Prevent Cloning" OFF in the form's Settings.
+3. Keep "Do Not Allow My Forms to Be Cloned by Other Users" OFF in account Privacy at `https://www.jotform.com/myaccount/security`.
+4. Keep the qid layout stable. Cloned forms inherit the qids 40 through 51 used by the canonical `JOTFORM_FIELD_MAP`. Adding or reordering questions changes those qids and breaks new installs unless the kit's default `JOTFORM_FIELD_MAP` is updated to match.
+5. Keep the form free of any agent-specific contact info, signature, recipient email default, or branded copy. This is a public template; the only specifics in it should be Jotform substitution tokens for prefilled hidden fields (`{propertyAddress}`, `{propertyStats}`, `{showingDate}`).
+
 ---
 
 ## Files for you (the distributor)
