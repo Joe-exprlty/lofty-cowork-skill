@@ -9,7 +9,7 @@
 # ────────────────────────────────────────────────────────────────
 
 # Required: Lofty CRM personal access token (JWT format).
-# Get from: app.lofty.com -> Settings -> API Keys -> Generate
+# Get from: app.lofty.com -> Settings -> Integrations -> API -> Generate
 # It will be a long string starting with "eyJ".
 # Auth header format: "Authorization: token <key>"  (NOT "Bearer")
 LOFTY_API_KEY=your-lofty-jwt-here

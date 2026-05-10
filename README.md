@@ -12,22 +12,37 @@ This is the Claude-native equivalent of a ChatGPT Custom GPT. The big difference
 
 ```
 lofty-cowork-skill/
-├── README.md             (you are here - overview for the distributor)
+├── README.md             (you are here, overview for the distributor)
 ├── INSTALL.md            (recipient-side: how to install on a new machine)
 ├── PACKAGING.md          (distributor-side: how to package and share)
+├── CHANGELOG.md          (one entry per release)
 ├── lofty-cowork-helper/  (the skill itself, ready to package)
 │   ├── SKILL.md
 │   ├── scripts/
-│   │   └── setup_check.py
+│   │   ├── setup_check.py
+│   │   ├── refresh_leads_index.py
+│   │   ├── test_v1_2_methods.py
+│   │   ├── test_v1_3_methods.py
+│   │   └── test_worker_parsers.mjs
 │   ├── references/
 │   │   ├── full-guide.md
 │   │   ├── quirks.md
 │   │   ├── workflows.md
-│   │   └── extending.md
-│   └── assets/
-│       ├── lofty_api.py
-│       ├── env-template
-│       └── CLAUDE.md.template
+│   │   ├── extending.md
+│   │   ├── workers_setup.md
+│   │   └── calendar_routing.md
+│   ├── assets/
+│   │   ├── lofty_api.py
+│   │   ├── ics_builder.py
+│   │   ├── env-template
+│   │   ├── CLAUDE.md.template
+│   │   ├── post_showing_questions.yaml
+│   │   └── jotform_form_template.md
+│   └── workers/
+│       ├── jotform_to_lofty_worker.js
+│       ├── wrangler.jotform.toml
+│       └── migrations/
+│           └── 001_showing_feedback.sql
 ```
 
 ---

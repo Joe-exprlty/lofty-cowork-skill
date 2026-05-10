@@ -63,9 +63,9 @@ Useful for: "what has Jane been looking at this week?" Tell the user the address
 
 ## Schedule a showing (full flow)
 
-This requires extending the starter client. The starter does NOT include showing helpers; see `extending.md`.
+The starter client includes the showing helpers (`prepare_showing`, `find_listing_by_address`, `cancel_showing`) as of v1.3.0. No extension needed for the core flow. The `showing-sms` Cloudflare Worker (Tier 3, v1.7) is the only piece that requires additional setup; without it, `prepare_showing` still works but skips the post-showing SMS queue step.
 
-Once extended, the canonical flow:
+The canonical flow:
 
 1. `payload = api.prepare_showing(full_address, start_iso, client_name)` returns the listing details, the lead, a prefilled feedback URL, the calendar invite HTML, and the showing-log note text.
 2. If `payload.get("error")`: tell the user what went wrong (most often: address not found in the parsed zip; could be wrong city or wrong zip).

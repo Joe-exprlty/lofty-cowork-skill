@@ -8,22 +8,79 @@ This file gets a new Claude Cowork session up to speed on the **Phase 2** build 
 
 > Joe opened a new prompt and typed "Read Handoff.md and continue conversation." Follow this section to pick up exactly where we left off. Do NOT recap the prior session's work back to Joe; he was there. Get to the point.
 
-**Where we left off (May 10, 2026):** v1.6.0 is shipped (tag `v1.6.0` on origin/main as of May 10). The release lands the template-clone path for Easy Mode Tier 2 setup. Joe published the polished public template at form id `261294238566162`, the docs walk users through Jotform's import-from-URL wizard (Workspace → Create → Form → Import Form → From a Web Page → paste `https://form.jotform.com/261294238566162` → Create Form), and the v1.5 `create_form` natural-language flow is now the documented fallback for users who cannot import shared templates. No Worker code changes; Tier 2 architecture and D1 schema are unchanged from v1.5.
+**Where we left off (May 10, 2026 evening):** v1.6.2 is shipped (tag `v1.6.2` on origin/main as of May 10 evening). It is a pure pre-public-release doc cleanup pass on top of v1.6.1. Nothing has gone public yet, so this is the last cleanup window before the first outside install. Zero code changes. Zero Worker changes. Zero schema changes. Pure doc drift fixes: broken file pointers in `CLAUDE.md.template`, "Tier 3 v1.6" stragglers in `SKILL.md` corrected to v1.7, Lofty API key path made consistent across `env-template`, `full-guide.md`, and the public `docs/index.html` GitHub Pages page, stale "starter does NOT include showing helpers" wording in `workflows.md`, five em-dashes scrubbed out of `workers_setup.md` per the brand rule, `README.md` repo-structure tree rewritten to reflect actual v1.6.1+ contents, and the `wrangler.jotform.toml` JOTFORM_FIELD_MAP comment block reframed to lead with the new working default. Existing v1.6.1 installs continue running without redeploy.
 
-The remaining v1.6 ladder item, the Tier 3 SMS Worker port, did not ship in this release. It is now pinned for v1.6.1 or v1.7 depending on whether Joe wants to bundle other Tier 3 work.
+Before v1.6.2 (still relevant context): v1.6.1 fixed first-time-user papercuts surfaced by an end-to-end test of v1.6 Easy Mode against brand new Jotform and Cloudflare accounts. One real code fix (canonical `JOTFORM_FIELD_MAP` default in `wrangler.jotform.toml` so fresh template clones route qid 51 correctly; previously it was `"{}"` and `memory_notes` data dropped silently) plus `workers_dev`/`preview_urls` explicit toml settings plus a substantial doc rewrite covering MCP install prereq, Lofty API token retrieval, Cloudflare token Account/Zone Resources dropdowns, Jotform UI path updates, wrangler interactive prompts, workers.dev SSL cert propagation delay, and the Jotform UI webhook wiring fix.
+
+The Tier 3 SMS Worker port from `saling-automation/worker/showing_sms_worker.js` is the headline remaining v1.7 item. Stage C (schedule-showing orchestration sub-skill) is the other.
+
+**MCP STATE WARNING:** As of v1.6.1 ship time, Joe's Cloudflare MCP and Jotform MCP are connected to test accounts (`jsaling31@gmail.com`) rather than his production accounts. He opted to swap them back "later, when I get around to it." Before any MCP call against Cloudflare or Jotform, verify which account is connected. The memory file at `project_mcps_on_test_accounts.md` has the full state. Test-account artifacts left in place: Cloudflare Worker `jotform-to-lofty.jsaling31-test.workers.dev`, Jotform form `261294822008152`, and the `.test-v1.6/` scratch folder in the kit (gitignored).
 
 **Do these checks silently first (do NOT narrate them to Joe):**
 
 1. Verify `~/Code/saling-automation/` is mounted via `mcp__cowork__request_cowork_directory`. If not, request it.
-2. Run `git log --oneline -5` on `~/Code/lofty-cowork-skill`. Confirm `v1.6.0` tag is on the latest commit and the working tree is clean.
-3. Run `node lofty-cowork-helper/scripts/test_worker_parsers.mjs`. Should print "All parser smoke tests passed."
-4. Read the "v1.7 ladder" section below so you know what comes next.
+2. Run `git log --oneline -5` on `~/Code/lofty-cowork-skill`. Confirm `v1.6.2` tag is on the latest commit and the working tree is clean.
+3. Run `node lofty-cowork-helper/scripts/test_worker_parsers.mjs`. Should print "All parser smoke tests passed." (Reassures you that v1.6.2's pure-doc edits did not accidentally touch any code path.)
+4. Check MCP state: call `mcp__c55037a8-92bb-4dab-ab11-9e055ea57019__accounts_list`. If the result names `Jsaling31@gmail.com's Account`, the MCPs are still on the test accounts (per the MCP STATE WARNING above). Surface this to Joe in your first message if true.
+5. Read the "v1.7 ladder" section below so you know what comes next.
+6. Skim the "Outstanding decisions" section. Two pre-public-release decisions are deferred from v1.6.2 and should be raised before the first public install: (a) what to do with HANDOFF.md (currently in the public repo, contains owner identity and brand-voice rules) and (b) what to do with `lofty-api-guide.md` at the repo root (duplicates the references/ docs and nothing references it).
 
 **Then, as your FIRST user-facing message, ask Joe what to work on next:**
 
-> v1.6 is shipped (tagged 2026-05-10, template-clone path live in Easy Mode). Three viable next directions: v1.6.1 / v1.7 Tier 3 SMS Worker port, Stage C (schedule-showing orchestration sub-skill), or a real end-to-end test of the v1.6 Easy Mode flow with a fresh Jotform account. Tier 3 SMS is the biggest user-visible payoff; Stage C streamlines your daily workflow; the e2e test catches any clone-flow papercuts before another agent hits them. Which way?
+> v1.6.2 is shipped (tagged 2026-05-10 evening, doc cleanup pass before the first public install). Three viable next directions: (1) Address the two open pre-release decisions (HANDOFF.md placement and lofty-api-guide.md disposition) plus the small housekeeping items (`_tmp_worker_test.mjs` leftover, `__pycache__/` cache) so the next push is the actual public release. (2) Tier 3 SMS Worker port (v1.7, headline functional item, Workers Paid plan required). (3) Stage C (schedule-showing orchestration sub-skill, smaller scope). Which way?
 
-Use AskUserQuestion with options like "Push into Tier 3 SMS Worker (v1.7)," "Push into Stage C (schedule-showing sub-skill)," "End-to-end test v1.6 Easy Mode with a fresh account," or "Other."
+If the MCP state check shows test accounts still connected, lead with: "Quick heads up before we start: your Cloudflare and Jotform MCPs are still on the test accounts from the v1.6.1 E2E session. Want to swap them back to your production accounts first?"
+
+Use AskUserQuestion with options like "Close the pre-release loose ends," "Push into Tier 3 SMS Worker (v1.7)," "Push into Stage C (schedule-showing sub-skill)," or "Other."
+
+---
+
+## v1.6.2 SHIPPED (2026-05-10 evening)
+
+Tag `v1.6.2` on origin/main. Pure pre-public-release doc cleanup pass. No code changes. No Worker changes. No schema changes. The skill triggers and the Worker behavior are byte-identical to v1.6.1. What landed:
+
+- **`lofty-cowork-helper/assets/CLAUDE.md.template`:** "Where to look for detail" section pointed at `claude-cowork-lofty-guide.md` (no such file) and `lofty_api_starter.py` (real file is `lofty_api.py`). Both pointers fixed. List expanded to also surface `references/quirks.md`, `references/workflows.md`, and `references/extending.md` so fresh installs' CLAUDE.md tells Claude what is actually in the kit.
+- **`lofty-cowork-helper/SKILL.md` lines 233 and 303:** still claimed Tier 3 ships in v1.6 after v1.6.1's pass missed these two instances. Both now say v1.7. Aligns SKILL.md with the workers_setup.md bottom-of-file note.
+- **`lofty-cowork-helper/assets/env-template` line 12:** still pointed at "Settings -> API Keys" after v1.6.1's API key path consistency pass. Updated to "Settings -> Integrations -> API."
+- **`lofty-cowork-helper/references/full-guide.md` line 115 (prereqs):** same fix.
+- **`docs/index.html` line 633 (public GitHub Pages landing page):** still told users to "click your profile picture top right, click Personal Settings, then Integrations. Scroll all the way down. If you see an 'API Keys' section..." This was the worst single contradiction in the repo because it is the first page brand-new users land on. Updated to the current path.
+- **`lofty-cowork-helper/references/workflows.md` lines 64-78:** still said "the starter does NOT include showing helpers; see extending.md." Showing helpers have been in the starter since v1.3.0. Rewrote the lead-in to reflect that only the showing-sms Worker (Tier 3, v1.7) requires additional setup.
+- **`lofty-cowork-helper/references/workers_setup.md` (lines 16, 87, 134, 151, 155):** removed five em-dash characters that crept in with v1.6 / v1.6.1's new content. v1.1.0 originally scrubbed em-dashes across the skill per the brand rule; the rule was not enforced on the v1.6 additions. Verified that none of the removed em-dashes were in file paths, variable names, env vars, config keys, JSON keys, URLs, or any code that does string matching. Two of the five were inside quoted Jotform UI taglines ("Share a link, I'll turn it into a form") which appear only in prose.
+- **`README.md` lines 13-31:** repo-structure tree listed only `SKILL.md`, `scripts/setup_check.py`, `references/`, and `assets/`. Rewrote to reflect the actual v1.6.1+ contents: adds `workers/` and `workers/migrations/`, the additional `scripts/` entries, the additional `references/` entries (`workers_setup.md`, `calendar_routing.md`), the additional `assets/` entries (`ics_builder.py`, `post_showing_questions.yaml`, `jotform_form_template.md`), and the top-level `CHANGELOG.md`.
+- **`lofty-cowork-helper/workers/wrangler.jotform.toml` lines 79-90:** JOTFORM_FIELD_MAP comment block still described the pre-v1.6.1 "empty default, alias fallback" framing as the working state. Rewrote to lead with the new working default and frame the empty-map / alias-fallback path as the override case. Actual `JOTFORM_FIELD_MAP` value on line 97 is unchanged. Pure comment refresh.
+- **`CHANGELOG.md`:** v1.6.2 entry added.
+
+**Verification grep ran after the edits.** Zero em-dashes in `lofty-cowork-helper/`. Zero "API Keys section" or "Personal Settings" wording in user-facing docs (the one remaining instance in `CHANGELOG.md` is the v1.1.0 historical entry and intentionally preserved). Zero "Tier 3 ... v1.6" claims. Zero broken file pointers. Zero "starter does NOT include showing helpers" wording.
+
+**Deferred from this pass (open for the next session):**
+- `HANDOFF.md` placement decision: this file contains owner-specific identity (Joe's name, email, phone, Cloudflare account ID) and brand-voice rules. Two options: move to a `.private/` folder before packaging, or add to `.gitignore` so it stays on Joe's machine. Joe opted to keep it for now since it is also the working brief for the next Claude session.
+- `lofty-api-guide.md` at the repo root: a ~605-line standalone field manual that duplicates `references/full-guide.md`, `references/quirks.md`, and `references/extending.md`. Grep returns zero internal references. Likely a leftover from an earlier release. Move to `_archive/` or delete.
+- `lofty-cowork-helper/scripts/_tmp_worker_test.mjs`: looks like a leftover scratch file from worker parser testing. Probably should not ship in the `.skill` package. Delete or move.
+- `lofty-cowork-helper/assets/__pycache__/lofty_api.cpython-310.pyc`: Python bytecode cache. Add to `.gitignore` if not already there.
+
+---
+
+## v1.6.1 SHIPPED (2026-05-10 evening)
+
+Tag `v1.6.1` on origin/main. Patch release surfaced by an end-to-end test of v1.6 Easy Mode against brand new Jotform and Cloudflare accounts. What landed:
+
+- **Code fix:** `lofty-cowork-helper/workers/wrangler.jotform.toml` ships the canonical `JOTFORM_FIELD_MAP` as the default value of the `JOTFORM_FIELD_MAP` env var (was `"{}"`). Critical because the public template (form `261294238566162`) uses Jotform's auto-generated unique name `anythingElse` for qid 51, and the alias-fallback path in the Worker doesn't match it, so qid 51 buyer-typed memory notes would land in the wrong place on a fresh clone. With the canonical map shipped as default, qid 51 routes correctly to the `memory_notes` D1 column without any per-install configuration.
+- **Code/security fix:** `lofty-cowork-helper/workers/wrangler.jotform.toml` explicitly sets `workers_dev = true` and `preview_urls = false` at the top level. Silences wrangler 4.x default warnings and closes a real attack surface (preview URLs default-on would expose a publicly accessible Worker version holding `LOFTY_API_KEY`).
+- **Doc rewrite:** `lofty-cowork-helper/references/workers_setup.md`. New prereqs covering MCP install (Cloudflare + Jotform from Customize → Connectors), Lofty API token retrieval (path corrected to `Settings → Integrations → API` per `api.lofty.com/docs`), Cloudflare token Account/Zone Resources dropdowns required on zoneless accounts, and Jotform signup gotchas (`?onboardingPrompt=1` URL param, "SAVE 50%" upsell banner, "Jotform for Claude" promo card). Easy Mode steps 2, 7, 8, 9, 10, 11 all rewritten. Power User Mode Jotform path updated. Bottom-of-file Tier 3 version corrected from v1.6 to v1.7.
+- **Doc rewrite:** Easy Mode step 9 webhook wiring rewritten end to end. The Jotform MCP cannot configure webhooks (its `edit_form` only handles question/field-level edits). Users now wire webhooks manually via Jotform UI: Form Builder → SETTINGS → Integrations → Webhooks → paste Worker URL → Complete Integration.
+- **Doc fix:** Lofty API token path corrected in three locations in `SKILL.md` and one in `references/full-guide.md` to match `api.lofty.com/docs`.
+- **Easy Mode step 7 optimization:** `LOFTY_API_KEY` is now auto-piped from `.env` via `grep | cut | tr | wrangler secret put`, eliminating manual paste.
+- `CHANGELOG.md` v1.6.1 entry.
+
+**Verified end-to-end:** Tested against brand new Jotform account, brand new Cloudflare account, real Lofty (Jack Ryan, `lead_id 1146742878287627`). D1 row landed with all columns populated correctly including `memory_notes`. Lofty note delivered with full formatting. Recap email delivered to jsaling31@hotmail.com via Lofty `send_email` fallback path.
+
+**Test artifacts NOT torn down per Joe's choice:**
+- Cloudflare test account `b04007e6828b36bea0360850eca935ce`: Worker `jotform-to-lofty.jsaling31-test.workers.dev` still deployed (D1 deleted; subdomain `jsaling31-test` is permanent on the account).
+- Jotform test account: form `261294822008152` still in place.
+- Local: `/Users/joesaling/Code/lofty-cowork-skill/.test-v1.6/` (gitignored).
+- Cloudflare MCP and Jotform MCP still connected to the test accounts. Joe to swap back at his convenience.
+
+**Cloudflare API token leak:** during the test, the Cloudflare API token Joe generated for the test account was inadvertently pasted into chat. Joe was advised to revoke from the Cloudflare dashboard when finished with the test account. Treat that token as compromised.
 
 ---
 
@@ -71,24 +128,24 @@ Tag `v1.5.0` on commit `b8374e3` on origin/main. What landed:
 
 ## v1.7 ladder
 
-Three viable next directions. They are independently scoped; pick whichever has the highest leverage for the moment.
+Two viable next directions. They are independently scoped; pick whichever has the highest leverage for the moment. (The E2E smoke of v1.6 Easy Mode that was previously item 3 here is DONE; it shipped as v1.6.1 on 2026-05-10 evening.)
 
-1. **Tier 3 SMS Worker (highest user-visible payoff).** Port `saling-automation/worker/showing_sms_worker.js` (Durable Object alarms, no cron, 162ms alarm precision validated in production) into `lofty-cowork-helper/workers/showing_sms_worker.js`. Strip Joe-specifics. Templated `wrangler.toml` template under `workers/wrangler.showing-sms.toml`. Requires Cloudflare Workers Paid plan ($5/mo) for Durable Objects, so the picker in `SKILL.md` should add a Workers Paid prereq check before routing to Easy Mode. Update `references/workers_setup.md` with a "Tier 3 setup" section parallel to Tier 2.
+1. **Tier 3 SMS Worker (highest user-visible payoff).** Port `saling-automation/worker/showing_sms_worker.js` (Durable Object alarms, no cron, 162ms alarm precision validated in production) into `lofty-cowork-helper/workers/showing_sms_worker.js`. Strip Joe-specifics. Templated `wrangler.toml` template under `workers/wrangler.showing-sms.toml`. Requires Cloudflare Workers Paid plan ($5/mo) for Durable Objects, so the picker in `SKILL.md` should add a Workers Paid prereq check before routing to Easy Mode. Update `references/workers_setup.md` with a "Tier 3 setup" section parallel to Tier 2. Apply the same first-time-user lessons from v1.6.1 (MCP install reminder, wrangler interactive prompts, SSL cert delay note) to the new setup section.
 
 2. **Stage C: schedule-showing orchestration sub-skill.** Port `.claude/skills/schedule-showing/SKILL.md` from `saling-automation` into `lofty-cowork-helper/`. Strip Joe-specifics. Drives multi-stop showing scheduling end-to-end (resolve client, parse times, prepare_showing per stop, calendar invite, note, SMS verification). Reduces a 10-minute multi-step workflow to a single chat sentence. Adds a Phase 2 onboarding step to the public skill's Easy Mode setup.
 
-3. **End-to-end smoke of v1.6 Easy Mode with a fresh Jotform account.** Real-world test of the import-from-URL flow with a brand new Jotform account that has never seen the template. Confirms (a) the import wizard accepts `https://form.jotform.com/261294238566162` without an Unauthorized error, (b) the cloned form preserves the qid 40-51 layout the canonical `JOTFORM_FIELD_MAP` assumes, (c) the optional theme override edit_form call still works, (d) the rest of Easy Mode runs unchanged through to a green smoke test. Cheapest direction; surfaces any v1.6 papercuts before strangers hit them.
-
-Recommend (3) first since it locks in the v1.6 release, then (1) since Tier 3 is the biggest functional jump remaining.
+Recommend (1) first since Tier 3 is the biggest functional jump remaining for the kit. Stage C is a tighter scope and a good second.
 
 ---
 
-## Status snapshot (May 10, 2026)
+## Status snapshot (May 10, 2026 evening)
 
-- **v1.6.0 SHIPPED.** Tag on origin/main. Template-clone path live. CHANGELOG updated. Public template form `261294238566162` is published in Joe's Jotform account with Prevent Cloning OFF.
+- **v1.6.2 SHIPPED.** Tag on origin/main. Pre-public-release doc cleanup pass. Pure doc edits, zero code or schema changes. Broken file pointers in `CLAUDE.md.template` fixed, "Tier 3 v1.6" stragglers in `SKILL.md` corrected to v1.7, Lofty API key path made consistent across `env-template`, `full-guide.md`, and the public `docs/index.html` page, stale "starter does NOT include showing helpers" wording in `workflows.md` rewritten, five em-dashes scrubbed from `workers_setup.md`, `README.md` repo-structure tree rewritten to reflect actual v1.6.1+ contents, `wrangler.jotform.toml` JOTFORM_FIELD_MAP comment reframed.
+- **v1.6.1 SHIPPED.** Tag on origin/main. Patch release fixing the first-time-user papercuts that v1.6 Easy Mode E2E testing surfaced. Canonical `JOTFORM_FIELD_MAP` default in toml; `workers_dev`/`preview_urls` pinned; doc rewrites covering MCP install, Lofty API token path, Cloudflare token dropdown gotchas, Jotform UI path updates, wrangler interactive prompts, SSL cert delay, and webhook UI path. Verified end-to-end against brand new accounts.
+- **v1.6.0 SHIPPED.** Template-clone path live. Public template form `261294238566162` published in Joe's Jotform account with Prevent Cloning OFF.
 - Phase 2 Stage A is COMPLETE through v1.4.1. Showing primitives, leads index, post-showing question pack, full read coverage of the API surface, Content-Type bug fix, find_client fallback for unsynced contacts.
 - Phase 2 Stage B v1.5 is COMPLETE. Tier 2 jotform-to-lofty Worker + D1 + Easy Mode picker shipped. Joe's production is on it.
-- Phase 2 Stage B v1.6 is COMPLETE for the template-clone path. Tier 3 SMS Worker portion did NOT ship in v1.6; it remains the headline item for the next ladder.
+- Phase 2 Stage B v1.6 / v1.6.1 is COMPLETE. Template-clone path live AND verified end-to-end against fresh accounts. Tier 3 SMS Worker portion did NOT ship; it remains the headline item for the next ladder.
 - Phase 2 Stage B v1.7 is NOT STARTED. Tier 3 SMS Worker (top priority) plus Tier 3 polish (leads-index Worker free tier, optional once v1.4.1 fallback is in place; short-links Worker free tier, may be cut entirely per locked decision #11).
 - Phase 2 Stage C (`schedule-showing` orchestration sub-skill, Phase 2 onboarding in Easy Mode) NOT STARTED.
 
@@ -160,7 +217,13 @@ Decided across the May 7 and two May 8 design sessions. Do not revisit without s
 ## Stage status
 
 ### Stage A: COMPLETE through v1.4.1.
-### Stage B v1.6: COMPLETE (shipped 2026-05-10 as v1.6.0) for the template-clone path. Tier 3 SMS Worker NOT included; remains pinned for v1.7.
+### Stage B v1.6.2: COMPLETE (shipped 2026-05-10 evening as v1.6.2). Pre-public-release doc cleanup pass. Pure doc edits, zero code or schema changes. The skill is now internally consistent and ready for the first outside install once the four deferred pre-release items (HANDOFF.md placement, lofty-api-guide.md disposition, `_tmp_worker_test.mjs` cleanup, `__pycache__` gitignore) are resolved.
+
+### Stage B v1.6.1: COMPLETE (shipped 2026-05-10 evening as v1.6.1). Template-clone path live AND verified end-to-end against fresh accounts. Tier 3 SMS Worker NOT included; remains pinned for v1.7.
+
+v1.6.1 patches the first-time-user papercuts that surfaced during the E2E test. `JOTFORM_FIELD_MAP` default now canonical in `wrangler.jotform.toml`. `workers_dev` / `preview_urls` pinned. Doc rewrites cover MCP install prereq, Lofty API token path (`Settings → Integrations → API` per Lofty docs), Cloudflare token dropdowns on zoneless accounts, Jotform UI path update (`+ CREATE → Import form → Import from URL`), wrangler interactive prompts (create-Worker, register-subdomain), workers.dev SSL cert propagation delay, and Jotform UI webhook wiring (Jotform MCP `edit_form` cannot configure webhooks).
+
+### Stage B v1.6: COMPLETE (shipped 2026-05-10 as v1.6.0) for the template-clone path.
 
 Template-clone path landed. Public template form 261294238566162 in Joe's Jotform account, scrubbed, Prevent Cloning OFF. Easy Mode and Power User Mode walkthroughs in `references/workers_setup.md` updated. `assets/jotform_form_template.md` re-headed as the v1.5 fallback. `SKILL.md` B1.8 picker updated. `README.md` adds maintainer responsibilities for the template form.
 
@@ -215,10 +278,14 @@ Port `.claude/skills/schedule-showing/SKILL.md` from `saling-automation`. Add Ph
 
 ## Outstanding decisions
 
-1. **`v1.4.1` git tag.** Commit `f027a87` was on origin/main but no tag was created at v1.4.1 ship time. If Joe wants release-tag parity with v1.4.0, tag it before v1.5. Otherwise skip.
-2. **Cut the short-links Worker from the public skill?** Locked decision #11 flagged this for investigation at v1.7. Joe to confirm at that time.
-3. **Slide deck for Joe's realtor talk.** Joe was building a 12-slide deck in Claude Design at `claude.ai/design`, project name "Lofty + Claude for Realtors - 25 min Talk." Verify state separately from engineering work.
-4. **Lofty API key rotation.** Hold until Phase 2 is fully deployed so it's a single rotation pass.
+1. **`HANDOFF.md` placement (pre-release).** This file is in the public repo as of v1.6.2. It contains owner identity (Joe's name, email, phone, Cloudflare account ID `22c50f7ac3f85d789dfec570642ae9af`, production D1 id `2d6dd086-c086-457c-a03e-11500da56f08`, production Worker subdomain `joe-2c5`), brand voice rules, and explicit instructions for the next Claude session ("Do NOT recap the prior session's work back to Joe"). Per locked decision #1 the public skill is supposed to be a pure template, so HANDOFF.md technically violates that. Joe opted to keep it for now because it is also the working brief for the next session. Two options to close this before the first public install: (a) move to a `.private/` folder and exclude from the packaging script's input, or (b) add `HANDOFF.md` to `.gitignore` so it stays only on Joe's machine.
+2. **`lofty-api-guide.md` at the repo root (pre-release).** A ~605-line standalone field manual that heavily duplicates `references/full-guide.md`, `references/quirks.md`, and `references/extending.md`. Grep returns zero internal references. Likely a leftover from an earlier release. Recommend moving to `_archive/` (recoverable) or deleting outright before the first public install.
+3. **`lofty-cowork-helper/scripts/_tmp_worker_test.mjs` cleanup (pre-release).** Looks like a leftover scratch file from worker parser testing. Probably should not ship in the `.skill` package. Delete or move.
+4. **`lofty-cowork-helper/assets/__pycache__/lofty_api.cpython-310.pyc` (pre-release).** Python bytecode cache. Add `__pycache__/` to `.gitignore` and remove from the repo before packaging.
+5. **`v1.4.1` git tag.** Commit `f027a87` was on origin/main but no tag was created at v1.4.1 ship time. If Joe wants release-tag parity with v1.4.0, tag it before v1.5. Otherwise skip.
+6. **Cut the short-links Worker from the public skill?** Locked decision #11 flagged this for investigation at v1.7. Joe to confirm at that time.
+7. **Slide deck for Joe's realtor talk.** Joe was building a 12-slide deck in Claude Design at `claude.ai/design`, project name "Lofty + Claude for Realtors - 25 min Talk." Verify state separately from engineering work.
+8. **Lofty API key rotation.** Hold until Phase 2 is fully deployed so it's a single rotation pass.
 
 The form-import migration path question is RESOLVED (Path B, one codebase). The branding-before-form-creation question is RESOLVED (locked decision #12).
 
@@ -270,10 +337,10 @@ These details belong in HANDOFF.md and `docs/index.html` ONLY. Not in the public
 ## Recommended order for the next session
 
 1. Read this HANDOFF.md (you're doing it now).
-2. Verify the production reference is mounted and the public skill working tree is clean (silent checks per the QUICK START).
-3. Run the parser smoke test to confirm the Worker still works: `node lofty-cowork-helper/scripts/test_worker_parsers.mjs`. Should print "All parser smoke tests passed."
-4. Ask Joe whether to push into B1.8, run the production migration first, or pause (use AskUserQuestion).
-5. After Joe answers, proceed accordingly. Likely path: B1.8 → production migration → v1.5 release.
+2. Verify the production reference is mounted and the public skill working tree is clean (silent checks per the QUICK START). Latest tag should be `v1.6.2`.
+3. Run the parser smoke test to confirm the Worker still works: `node lofty-cowork-helper/scripts/test_worker_parsers.mjs`. Should print "All parser smoke tests passed." (v1.6.2 was pure doc edits, but the smoke test is the fastest single check that nothing was inadvertently touched in `workers/jotform_to_lofty_worker.js`.)
+4. Ask Joe what to push into next (use AskUserQuestion). The three real options are: close the pre-release loose ends (Outstanding decisions 1 through 4), Tier 3 SMS Worker port (v1.7), or Stage C (schedule-showing sub-skill).
+5. If Joe picks the pre-release path, the four items are small and can land in a single v1.6.3 patch: move or gitignore HANDOFF.md, move or delete lofty-api-guide.md, delete `_tmp_worker_test.mjs`, add `__pycache__/` to `.gitignore`. None of these touch code or schema.
 6. When porting code into Joe's production: every Worker URL, every account ID, every secret value still applies. Use the Cloudflare MCP for read-only inspection during development; reserve `wrangler` for actual deploys and `wrangler secret put`.
 
-Do NOT delete this HANDOFF.md until Phase 2 is finished and shipped. Joe wants it kept as the working brief.
+Do NOT delete this HANDOFF.md until Phase 2 is finished and shipped. Joe wants it kept as the working brief. The decision about how to keep HANDOFF.md OUT of the public package is Outstanding decision #1.

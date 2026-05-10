@@ -98,5 +98,8 @@ Address format Lofty expects: `STREET, CITY, STATE ZIP` (e.g. `11513 SW BAMBI LN
 
 ## Where to look for detail
 
-- `claude-cowork-lofty-guide.md` (in this kit's root): full setup, learning, and best-practices guide.
-- `lofty_api_starter.py`: the Python client itself; method comments document each quirk inline.
+- `references/full-guide.md` (inside the installed skill): full setup, learning, and best-practices guide. Ask Claude "show me the full Lofty guide" to surface it.
+- `scripts/lofty_api.py`: the Python client itself; method comments document each quirk inline.
+- `references/quirks.md`: the full quirks list.
+- `references/workflows.md`: step-by-step recipes for common tasks.
+- `references/extending.md`: how to add capability beyond the starter.

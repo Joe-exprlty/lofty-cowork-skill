@@ -77,17 +77,21 @@ database_id = "REPLACE_WITH_D1_ID_FROM_WRANGLER_D1_CREATE"
 #                      Leave blank to omit the line.
 #
 #   JOTFORM_FIELD_MAP  JSON-stringified object mapping Jotform qid ->
-#                      purpose tag. The default ships with the canonical
-#                      qid layout produced by the public template clone
-#                      (form id 261294238566162); routing works on a
-#                      fresh Easy Mode install with no further edits.
-#                      Override this if you built the form via the
-#                      v1.5 create_form fallback path or otherwise
-#                      have a different qid layout. The Worker falls
-#                      back to alias matching when this is set to "{}",
-#                      but cloned-template installs should NOT need
-#                      that fallback. See assets/jotform_form_template.md
-#                      for shape details.
+#                      purpose tag. The default shipped below matches the
+#                      canonical qid layout produced by cloning the public
+#                      template (form id 261294238566162), so a fresh Easy
+#                      Mode install routes correctly with no edits.
+#
+#                      Override this only if you built the form via the
+#                      v1.5 create_form fallback path (which lowercases
+#                      field names and produces a different qid layout)
+#                      or hand-edited qids on your cloned form.
+#
+#                      Setting this to "{}" reverts the Worker to alias
+#                      matching on field names. Pre-v1.6.1 installs used
+#                      this fallback by default; v1.6.1+ template-clone
+#                      installs should not need it. See
+#                      assets/jotform_form_template.md for shape details.
 [vars]
 OWNER_FULL_NAME = "REPLACE_WITH_OWNER_FULL_NAME"
 OWNER_EMAIL = "REPLACE_WITH_OWNER_EMAIL"

@@ -112,7 +112,7 @@ Hard requirements (all platforms):
 
 - Mac (macOS 14+), Windows (10 or 11), or Linux. All three are supported.
 - Python 3.11 or newer
-- A Lofty account that has API access enabled (Settings, API Keys section is visible)
+- A Lofty account that has API access enabled (Settings, Integrations, API section is visible)
 - Claude Desktop installed with Cowork mode enabled
 - A code editor that handles dotfiles correctly (VS Code, Cursor, TextEdit on Mac). On Windows, do NOT use plain Notepad; it can mangle `.env` files.
 - A terminal: macOS Terminal, Windows Terminal or PowerShell, or your Linux distro's default

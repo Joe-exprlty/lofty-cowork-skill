@@ -13,7 +13,7 @@ End-to-end testing on a brand new Jotform account and a brand new Cloudflare acc
 - Prereqs now include an explicit MCP install step (Cloudflare MCP + Jotform MCP from Customize > Connectors in Claude Desktop), a Lofty API token retrieval step, and concrete dropdown guidance for the Cloudflare "Edit Cloudflare Workers" token template on zoneless accounts.
 - Easy Mode step 7 reads `LOFTY_API_KEY` directly from `.env` and pipes it into `wrangler secret put`, eliminating the manual paste.
 - The Jotform import-from-URL walkthrough is rewritten for Jotform's current UI ("+ CREATE → Import form → Import from URL") and warns about the misleading "I'll turn it into a form" tagline.
-- Step 9 (webhook wiring) is rewritten — the Jotform MCP cannot wire webhooks, so users wire them via Jotform's UI (Settings → Integrations → Webhooks).
+- Step 9 (webhook wiring) is rewritten. The Jotform MCP cannot wire webhooks, so users wire them via Jotform's UI (Settings → Integrations → Webhooks).
 - Several wrangler interactive prompts (create-Worker, register-subdomain) and the workers.dev SSL cert propagation delay are now called out so users know what to expect.
 
 ## What changed in v1.6
@@ -84,7 +84,7 @@ This is the script Claude follows when you say "set up Tier 2." Listed here for 
    - Below the AI prompt input, in the "Other ways to create" tiles row, click **Import form**.
    - On the next screen, click **Import from URL**.
    - Paste this URL into the input field: `https://form.jotform.com/261294238566162` (the public template form URL; the kit's canonical template id is documented in the README).
-   - Click the green **Import** button. The page tagline says "Share a link — I'll turn it into a form," which sounds like AI synthesis but is actually a faithful clone of the public template (preserving qid layout, hidden fields, Card Form layout, and styling).
+   - Click the green **Import** button. The page tagline says "Share a link, I'll turn it into a form," which sounds like AI synthesis but is actually a faithful clone of the public template (preserving qid layout, hidden fields, Card Form layout, and styling).
    - Jotform redirects to Form Builder for the new form. Capture the new form id from the URL: `https://www.jotform.com/build/<FORM_ID>`. Save as `JOTFORM_FORM_ID` in `.env`.
    - If the user gets an "Unauthorized request" error, the template owner has cloning blocked. Surface that as a setup error and route to the fallback procedure in `assets/jotform_form_template.md`.
    - The cloned form's qids 40 through 50 match the canonical `JOTFORM_FIELD_MAP` shape exactly. Qid 51 on the public template uses Jotform's auto-generated unique name `anythingElse`, but the kit's default `JOTFORM_FIELD_MAP` in `workers/wrangler.jotform.toml` maps qid 51 to the `memory_notes` purpose tag, so the routing works correctly without a per-install map. Only derive a custom map if step 11 (smoke test) shows fields landing in the wrong D1 columns.
@@ -131,7 +131,7 @@ This is the script Claude follows when you say "set up Tier 2." Listed here for 
 11. **Smoke test.** Prompt the user to submit one test entry on the form. Build a prefill URL with a known `lead_id` from the user's Lofty (so the hidden fields land filled in, simulating a real showing link). Confirm three things:
     - The Lofty note lands on the matching lead (use `api.get_notes(<lead_id>)` to check).
     - The D1 row count went from 0 to 1 (`SELECT COUNT(*) FROM showing_feedback`).
-    - Every column on the new D1 row is populated, especially `memory_notes` (the qid 51 routing test — this is the v1.6.1 fix's smoke check).
+    - Every column on the new D1 row is populated, especially `memory_notes` (the qid 51 routing test, which is the v1.6.1 fix's smoke check).
 
     If any field landed in the wrong D1 column, run `fetch(<form_id>)` to introspect the cloned form's qids, build a corrected `JOTFORM_FIELD_MAP`, push as a Worker variable with `wrangler secret put JOTFORM_FIELD_MAP -c workers/wrangler.jotform.toml`, and redeploy.
 
@@ -148,11 +148,11 @@ Run from the kit root unless noted. All commands are copy-paste safe.
 **Recommended: import the public template into your Jotform account.**
 
 1. Sign into Jotform.
-2. Go to `https://www.jotform.com/workspace/`. If your URL has `?onboardingPrompt=1` from a fresh signup, strip it first — the onboarding modal hides the "Import form" tile.
+2. Go to `https://www.jotform.com/workspace/`. If your URL has `?onboardingPrompt=1` from a fresh signup, strip it first, since the onboarding modal hides the "Import form" tile.
 3. Click **+ CREATE** (top-left). The "Describe your form" modal opens.
 4. Under the AI prompt input, in the "Other ways to create" tiles, click **Import form**, then **Import from URL**.
 5. Paste `https://form.jotform.com/261294238566162` into the URL input field. (The kit's canonical template id is documented in the README.)
-6. Click the green **Import** button. Jotform's tagline says "Share a link — I'll turn it into a form," but the actual behavior is a faithful clone of the public template (preserving qid layout, hidden fields, Card Form layout, and styling).
+6. Click the green **Import** button. Jotform's tagline says "Share a link, I'll turn it into a form," but the actual behavior is a faithful clone of the public template (preserving qid layout, hidden fields, Card Form layout, and styling).
 7. You land in Form Builder. Your new form id is in the URL: `https://www.jotform.com/build/<FORM_ID>`. Save it to `.env` as `JOTFORM_FORM_ID`.
 
 The cloned form already has all the questions, hidden fields, and the polished Card layout. The Worker's default `JOTFORM_FIELD_MAP` (shipped in `wrangler.jotform.toml`) already matches the qid layout, so no per-install map is needed.

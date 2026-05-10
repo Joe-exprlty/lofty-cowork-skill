@@ -230,7 +230,7 @@ If neither MCP is connected and the user does not want to install them, default 
 - Add `JOTFORM_WORKER_URL=<deployed-url>` to `.env` so `api.get_buyer_preferences(lead_id)` works from Python.
 - Confirm `LOFTY_PREFERENCES_API_KEY` is in `.env` (Easy Mode step 7, Power User step 6).
 - Tell the user what they just unlocked: `api.get_buyer_preferences(lead_id)` from Python, the optional buyer profile Cowork artifact, and the per-buyer trend section that appears in recap emails after 3+ submissions from the same lead.
-- Tier 3 (the showing-reminder SMS Worker) is a separate v1.6 deploy that requires Cloudflare Workers Paid ($5/mo). Don't bundle it with Tier 2.
+- Tier 3 (the showing-reminder SMS Worker) is a separate v1.7 deploy that requires Cloudflare Workers Paid ($5/mo). Don't bundle it with Tier 2.
 
 ---
 
@@ -300,7 +300,7 @@ The v1.2.0 starter covers leads, notes, activities, MLS search, tasks, email, an
 - Adding showing scheduling helpers (`prepare_showing`, `find_listing_by_address`)
 - Building a leads index for real name search across the full CRM
 - Deploying the post-showing feedback Worker (`jotform-to-lofty` + D1) - see "Tier 2 setup: post-showing feedback Worker" above for the full picker; `references/workers_setup.md` has the deploy walkthrough
-- Other Cloudflare Workers (leads-index, short-links, showing-sms) ship in v1.6 and v1.7
+- Other Cloudflare Workers (leads-index, short-links, showing-sms) ship in v1.7 and later
 - Subscribing to webhooks for live updates
 
 Each addition has a pattern in the full guide. Use the same `_request` plumbing the starter client provides; do not reinvent it.
