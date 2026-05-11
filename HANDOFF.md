@@ -8,9 +8,9 @@ This file gets a new Claude Cowork session up to speed on the **Phase 2** build 
 
 > Joe opened a new prompt and typed "Read Handoff.md and continue conversation." Follow this section to pick up exactly where we left off. Do NOT recap the prior session's work back to Joe; he was there. Get to the point.
 
-**Where we left off (May 11, 2026 evening, second session):** v1.8.0 Stage C is shipped locally (commit + tag on the local main branch, push pending). The `schedule-showing` orchestration sub-skill is ported from `saling-automation` into `lofty-cowork-helper/skills/schedule-showing/SKILL.md`. All Joe-specifics stripped and replaced with workspace `CLAUDE.md` placeholders. SKILL.md trigger phrases, "How to start a session" routing, and file map all updated. `workflows.md` and `extending.md` get lead-in pointers to the sub-skill, with the existing primitive recipes preserved as manual fallbacks.
+**Where we left off (May 11, 2026 evening, second session):** v1.8.0 Stage C is fully SHIPPED to origin. The `schedule-showing` orchestration sub-skill is ported from `saling-automation` into `lofty-cowork-helper/skills/schedule-showing/SKILL.md`. All Joe-specifics stripped and replaced with workspace `CLAUDE.md` placeholders. SKILL.md trigger phrases, "How to start a session" routing, and file map all updated. `workflows.md` and `extending.md` get lead-in pointers to the sub-skill, with the existing primitive recipes preserved as manual fallbacks. The v1.7.0 and v1.8.0 commits and tags are all on origin.
 
-Before v1.8.0 (still relevant context): v1.7.0 shipped earlier the same day (Tier 3 SMS Worker with per-showing Durable Object alarms, 633ms E2E precision). v1.6.3 shipped earlier that day (housekeeping patch closing the v1.6.2 deferred list). The v1.7.0 and v1.8.0 commits and tags are pending on Joe's local main; everything from v1.6.3 and earlier is on origin.
+Before v1.8.0 (still relevant context): v1.7.0 shipped the same day (Tier 3 SMS Worker with per-showing Durable Object alarms, 633ms E2E precision). v1.6.3 shipped earlier that day (housekeeping patch closing the v1.6.2 deferred list). Everything through v1.8.0 is on origin.
 
 v1.6.3 (housekeeping patch, deleted the leftover `_tmp_worker_test.mjs` stub) and the v1.6.2 tag were both shipped earlier on 2026-05-11 and pushed to origin. Three deferred items from the v1.6.2 list remain intentionally in place per Joe's call: `HANDOFF.md`, `lofty-api-guide.md`, and `RESEARCH_NOTES_2026-05-07.md`.
 
@@ -25,18 +25,18 @@ Tier 3 SMS Worker (v1.7) and Stage C orchestration sub-skill (v1.8) are both DON
 **Do these checks silently first (do NOT narrate them to Joe):**
 
 1. Verify `~/Code/saling-automation/` is mounted via `mcp__cowork__request_cowork_directory`. If not, request it.
-2. Run `git log --oneline -5` on `~/Code/lofty-cowork-skill`. Confirm the most recent commit is the v1.8.0 ship commit and the working tree is clean. If `git ls-remote --tags origin` does NOT show `v1.7.0` and `v1.8.0`, the push from the v1.8.0 session never happened. Ask Joe to push from GitHub Desktop (commits + tags) before doing anything else.
-3. Run both `node lofty-cowork-helper/scripts/test_worker_parsers.mjs` and `node lofty-cowork-helper/scripts/test_showing_sms_worker.mjs`. Both should pass. This reassures you that v1.8.0's doc and sub-skill changes did not accidentally touch any code path.
-4. Check MCP state: call `mcp__c55037a8-92bb-4dab-ab11-9e055ea57019__accounts_list`. If the result names `Jsaling31@gmail.com's Account`, the MCPs are still on the test accounts (per the MCP STATE WARNING above). Surface this to Joe in your first message if true.
-5. Read the "Roadmap from v1.8.0 to v2.0.0" section below so you know what comes next.
+2. Run `git log --oneline -5` on `~/Code/lofty-cowork-skill`. Confirm the most recent commit is the v1.8.0 ship commit (`8699ad8 v1.8.0: Stage C ships`) and the working tree is clean. Confirm `git ls-remote --tags origin` shows `v1.7.0` AND `v1.8.0`. If either tag is missing, ask Joe to push tags before doing anything else.
+3. Run both `node lofty-cowork-helper/scripts/test_worker_parsers.mjs` and `node lofty-cowork-helper/scripts/test_showing_sms_worker.mjs`. Both should pass. This reassures you that nothing has rotted since v1.8.0 shipped.
+4. Check MCP state: call `mcp__c55037a8-92bb-4dab-ab11-9e055ea57019__accounts_list`. If the result names `Jsaling31@gmail.com's Account`, the MCPs are still on the test accounts (per the MCP STATE WARNING above). Surface this to Joe in your first message if true. Worth noting: v1.9.0 deploy work touches Cloudflare directly, so the test-account-vs-production question matters more this session than it did for Stage C.
+5. Read the "v1.9.0 plan: leads-index Worker" section below so you know what comes next.
 
 **Then, as your FIRST user-facing message, do NOT ask Joe what to work on. The next step is already decided: v1.9.0, the leads-index Worker (free Cloudflare tier, opt-in). Lead with:**
 
-> v1.8.0 Stage C is shipped. Next step is v1.9.0: the leads-index Worker port (free tier, opt-in). Or, if you want to push v2.0.0 sooner, we can park v1.9.0 and audit the kit for v2.0.0 packaging. Ready to pick a direction?
+> v1.8.0 Stage C is shipped. Next up is v1.9.0: the leads-index Worker port from saling-automation. Free Cloudflare tier, no Workers Paid needed. Ready to start the port?
 
-Use AskUserQuestion with options like "Port the leads-index Worker (v1.9.0)," "Skip v1.9.x and start the v2.0.0 audit," "Swap MCPs back to production accounts," or "Other."
+Then proceed directly into the port work. The full plan is in the "v1.9.0 plan: leads-index Worker" section below.
 
-If the MCP state check shows test accounts still connected, lead with: "Quick heads up before we start: your Cloudflare and Jotform MCPs are still on the test accounts from the v1.6.1 E2E session. Want to swap them back to your production accounts first?"
+If the MCP state check shows test accounts still connected, lead with: "Quick heads up before we start: your Cloudflare MCP is still on the test account from the v1.6.1 E2E session. v1.9.0 deploy work hits Cloudflare directly, so this matters more this session. Want to swap back to production first, or stay on test for the port + dry runs and swap before Layer 3 E2E?"
 
 ---
 
@@ -68,7 +68,7 @@ Tag `v1.8.0` on local main, NOT YET PUSHED to origin as of this session. Stage C
 
 **Layer 3 E2E:** not yet run as of this session. Plan from the v1.7.0 ladder applies: one real showing scheduled end to end against Joe's own lead, using the v1.7.0 Tier 3 Worker.
 
-**Push status (as of this session):** Local tag `v1.8.0` and the v1.8.0 commit have NOT YET been pushed to origin. The v1.7.0 tag and commit are ALSO still pending (they were on local main but never pushed; the v1.8.0 push must include both). Joe pushes from GitHub Desktop: `git push origin main` covers both commits, and a separate `git push origin v1.7.0 v1.8.0` (or "Push tags" in GitHub Desktop) covers the tags.
+**Push status:** v1.8.0 commit (`8699ad8`) and tag are on origin. v1.7.0 tag is also on origin. All shipped releases through v1.8.0 are pushed.
 
 **Smoke tests:** Both `node lofty-cowork-helper/scripts/test_worker_parsers.mjs` and `node lofty-cowork-helper/scripts/test_showing_sms_worker.mjs` pass at v1.8.0 HEAD (no code paths touched by this release; the smoke tests are a defensive check).
 
@@ -96,7 +96,7 @@ Both staging artifacts (Worker `showing-sms-staging`, KV namespace `eb1f068d14af
 
 **Saved feedback memory (2026-05-11):** Easy Mode walkthroughs for the lofty-cowork-skill must include explicit terminal-open instructions before any CLI step. Real estate agents often have never opened a terminal. Tier 3 walkthrough already has the Step 0. Tier 2 walkthrough does NOT yet; revisit at a future cleanup pass.
 
-**Push status (as of this session):** Local tag `v1.7.0` and the v1.7.0 commit have NOT YET been pushed to origin. The next push must include the commit and the tag (`git push origin main` + `git push origin v1.7.0`, or in GitHub Desktop: Push to origin, then a separate tag-push step from the terminal).
+**Push status:** v1.7.0 commit (`e8b05dd`) and tag are on origin as of the v1.8.0 ship session.
 
 **Smoke tests:** Both `node lofty-cowork-helper/scripts/test_worker_parsers.mjs` and `node lofty-cowork-helper/scripts/test_showing_sms_worker.mjs` pass at v1.7.0 HEAD.
 
@@ -116,7 +116,7 @@ Tag `v1.6.3` on local main, NOT YET PUSHED to origin as of this session. Single-
 - `lofty-api-guide.md` stays at the repo root. Duplication with `references/full-guide.md` etc. is documented but the file is not a hazard.
 - `RESEARCH_NOTES_2026-05-07.md` stays at the repo root for the same reason.
 
-**Push status (as of this session):** Local tags `v1.6.2` and `v1.6.3` and the v1.6.3 commit have NOT YET been pushed to origin. The next push must include the commit and both tags (`git push origin main` + `git push origin v1.6.2 v1.6.3`, or in GitHub Desktop: Push to origin, then Repository → Push tags).
+**Push status:** v1.6.2 and v1.6.3 commits and tags are on origin as of post-v1.6.3 push.
 
 **Smoke test:** `node lofty-cowork-helper/scripts/test_worker_parsers.mjs` still prints "All parser smoke tests passed." after the deletion. The Worker is byte-identical to v1.6.2.
 
@@ -219,28 +219,26 @@ The order below is dependency-respecting and leverage-maximizing. Reasoning, not
 
 ### v1.8.0: Stage C, the `schedule-showing` orchestration sub-skill (DONE)
 
-Shipped 2026-05-11 evening (second session). Push pending. Turned the kit from "all the primitives are here, ask Claude to wire them" into "describe what you want in one chat sentence and it happens." Full notes in the "v1.8.0 SHIPPED" section above.
+Shipped 2026-05-11 evening (second session), now on origin. Turned the kit from "all the primitives are here, ask Claude to wire them" into "describe what you want in one chat sentence and it happens." Full notes in the "v1.8.0 SHIPPED" section above.
 
 ### v1.9.0: `leads-index` Worker (free tier, opt-in) (NEXT)
 
-See the section below ("v1.9.0: `leads-index` Worker") for the working brief.
+Adds `get_all_leads_by_visit` (deprecated forwarder) and `get_recent_visits_from_index` to the public kit's `lofty_api.py`. Note: both methods already exist in the public kit's `lofty_api.py` as of v1.3.0+; what's missing is the Worker that backs them when `LOFTY_LEADS_INDEX_SOURCE=worker` is set. Source: `~/Code/saling-automation/worker/leads_index_worker.js` (production) and `worker/leads_index_worker.v2_draft.js` (newer draft, evaluate which to port).
 
-### v1.8.1: Standalone niche methods in `lofty_api.py` (bundle with v1.8.0 if the diff stays small)
+Free Cloudflare tier covers it (no Workers Paid needed; that's Tier 3 only per locked decision #10). Depends on: nothing functional. The file-fallback in `find_client` continues to work for installs that skip this Worker. This is polish for agents with large CRMs (>10k leads).
+
+Full working brief in the "v1.9.0 plan: leads-index Worker" section below.
+
+Optional skip path: jump straight to a v2.0.0 packaging audit. If Stage C real-user usage suggests file-fallback name lookup is fine for small/medium CRMs, the leads-index Worker can stay parked indefinitely without blocking the public release. Confirm with Joe before starting v1.9.0.
+
+### v1.9.x: Standalone niche methods in `lofty_api.py` (bundle if any are touched during v1.9.0 port)
 
 Nine `lofty_api.py` methods present in production but missing from the public kit:
 - Utility helpers: `epoch_ms_to_dt`, `parse_time`
 - Niche capability: `assign_lead`, `delete_lead`, `generate_call_script`, `get_lead_analysis`, `summarize_activities`
-- Leads-index dependent (DEFER to v1.9.0): `get_all_leads_by_visit`, `get_recent_visits_from_index`
+- Already in the kit, but `LOFTY_LEADS_INDEX_SOURCE=worker` mode untested without the Worker: `get_all_leads_by_visit`, `get_recent_visits_from_index`
 
-If Stage C ends up needing `parse_time` for human-friendly time parsing in showing schedules (likely), bundle this into v1.8.0 directly rather than holding for a separate patch.
-
-### v1.9.0: `leads-index` Worker (free tier, opt-in) (NEXT)
-
-Adds `get_all_leads_by_visit` and `get_recent_visits_from_index` to `lofty_api.py`. Makes `find_client` fast at scale. Source: `~/Code/saling-automation/worker/leads_index_worker.js` and `worker/leads_index_worker.v2_draft.js`. Free Cloudflare tier covers it (no Workers Paid needed; that's Tier 3 only per locked decision #10).
-
-Depends on: nothing functional. The file-fallback in `find_client` continues to work for installs that skip this Worker. This is polish for agents with large CRMs (>10k leads).
-
-Optional skip path: jump straight to a v2.0.0 packaging audit. If Stage C real-user usage suggests file-fallback name lookup is fine for small/medium CRMs, the leads-index Worker can stay parked indefinitely without blocking the public release. Confirm with Joe before starting v1.9.0.
+If v1.9.0 needs any of these during the port, bundle directly rather than holding for a separate patch.
 
 ### v1.9.1 or later: Decide on `short-links` Worker
 
@@ -252,57 +250,77 @@ Feature parity with Joe's production reached. Announce on the GitHub Pages page,
 
 ---
 
-## v1.8.0 plan: Stage C, the `schedule-showing` orchestration sub-skill
+## v1.9.0 plan: `leads-index` Worker (free Cloudflare tier, opt-in)
 
 This is the working brief for the next session. Read this section + the "Recommended order" at the bottom, then start the port.
 
+### What the leads-index Worker does
+
+It keeps a live mirror of the agent's Lofty leads inside Cloudflare KV, updated via Lofty webhook list 2 (Lead Info: create/update/delete). The Python client reads from KV instead of polling Lofty's broken `/v1.0/leads` endpoint (which silently ignores `keyword` and `sortField` query parameters, confirmed by direct probe 2026-04-21). Result: `find_client` and `get_recent_visits_from_index` stay fast and accurate even for agents with 10k+ leads, with no polling and no quota burn.
+
+The Python side is already wired. `lofty_api.py` has `get_recent_visits_from_index` (the primary method) and `get_all_leads_by_visit` (deprecated forwarder). Both already respect the `LOFTY_LEADS_INDEX_SOURCE` env var: `worker` reads from the Cloudflare Worker's `/export` endpoint; anything else (default) reads from the local `data/leads_index.json` file built by `scripts/refresh_leads_index.py`. So when the Worker is deployed and `LOFTY_LEADS_INDEX_SOURCE=worker` is set, the Python automatically switches.
+
 ### Source files in saling-automation
 
-- `~/Code/saling-automation/.claude/skills/schedule-showing/SKILL.md`. The orchestration skill itself. Drives multi-stop showing scheduling end to end. Defines the trigger phrases ("schedule showings at," "schedule a tour for," "set up a showing at"), the conversational flow (resolve client → parse times → prepare_showing per stop → calendar invite → log a Lofty note → SMS verification), and the error recovery rules.
-- `~/Code/saling-automation/scripts/lofty_api.py` `prepare_showing` method (already in public kit's `assets/lofty_api.py`).
-- `~/Code/saling-automation/scripts/lofty_api.py` `find_listing_by_address`, `find_client`, `enqueue_showing_sms`, `build_showing_invite` methods (all already in public kit).
+- `~/Code/saling-automation/worker/leads_index_worker.js` (production, 16,683 bytes, last touched 2026-04-22). The version that runs in production today. Webhook receiver + KV write path + `/export`, `/lead/<id>`, `/bulk-import`, `/stats`, `/` health-check routes. Auth: bearer token on read/write endpoints; secret in path for the webhook receiver.
+- `~/Code/saling-automation/worker/leads_index_worker.v2_draft.js` (newer draft, 16,267 bytes, last touched 2026-04-24). Evaluate during the port whether the v2 draft is the better starting point or whether production is the right canonical source.
+- `~/Code/saling-automation/worker/wrangler.toml` (or whichever wrangler config currently deploys leads-index in production). Templatize KV namespace id, account id, and any other deploy-specific values.
+- `~/Code/saling-automation/scripts/refresh_leads_index.py`. Already exists in the public kit at `lofty-cowork-helper/scripts/refresh_leads_index.py`; confirm it's still byte-compatible with the v1.9.0 Worker's `/bulk-import` shape.
+- `~/Code/saling-automation/scripts/lofty_api.py` `_load_leads_index`, `_load_leads_index_from_worker`, `_load_leads_index_from_file` methods. Confirm parity with the public kit's `lofty_api.py`.
 
-### Port checklist (parallel to Tier 3 port pattern)
+### Port checklist (parallel to Tier 2 / Tier 3 port pattern)
 
-1. **Read `~/Code/saling-automation/.claude/skills/schedule-showing/SKILL.md` end to end.** Catalogue every Joe-specific identifier: virtual phone number `(503) 308-4676`, email `joe@sellingpdxhomes.com`, MLS agent codes (`SALINGJO` for RMLS, `7981` for WVMLS), timezone `America/Los_Angeles`, and the OWNER_FIRST_NAME inlined in the prompt text.
-2. **Create `lofty-cowork-helper/skills/schedule-showing/SKILL.md`** in the public kit. Strip Joe-specifics. Replace inline strings with references to the kit's `CLAUDE.md` placeholders (`{{OWNER_FIRST_NAME}}`, `{{TIMEZONE}}`, `{{MLS_AGENT_CODES}}`, etc.). Same shape as `CLAUDE.md.template` already uses.
-3. **Decide the sub-skill packaging shape.** Two options to consider during the port: (a) ship `schedule-showing` as a nested skill folder under `lofty-cowork-helper/skills/` (the saling-automation pattern), or (b) inline the workflow into a "Schedule a showing" picker in `SKILL.md` next to the Tier 2 and Tier 3 pickers. Lean toward (a) for parity with how Joe runs it; (b) is faster to ship but mixes concerns. Confirm with Joe at port start.
-4. **Wire trigger phrases into `SKILL.md`** (top-level description and "How to start a session" routing). Same pattern used for the Tier 2 and Tier 3 pickers in v1.5 and v1.7.
-5. **Update `references/workflows.md`** "Schedule a showing" section to reference the new sub-skill as the orchestration path. The existing primitive-by-primitive recipe in `workflows.md` stays as the manual fallback.
-6. **Update `references/extending.md`** if any sub-skill-related references are stale.
-7. **CHANGELOG.md** v1.8.0 entry.
-8. **HANDOFF.md** updates (v1.8.0 SHIPPED section, status snapshot, stage status).
-9. **Bundle v1.8.1 niche methods if any are touched during the port.** Likely candidates: `parse_time` (human-friendly time parsing for "1pm Saturday"), `epoch_ms_to_dt` (utility, if any showing logic needs it).
+1. **Decide which source variant to port.** Read both `leads_index_worker.js` and `leads_index_worker.v2_draft.js` end to end. Confirm with Joe at port start which one to use as the canonical source for the public kit. Defaults to production unless v2 has a clear UX or correctness improvement.
+2. **Read the chosen source end to end.** Catalogue every Joe-specific identifier: account ID `22c50f7ac3f85d789dfec570642ae9af`, KV namespace id, the `leads-index.joe-2c5.workers.dev` subdomain, any hardcoded `OWNER_*` strings, the production webhook secret, the production `EXPORT_API_KEY` value.
+3. **Create `lofty-cowork-helper/workers/leads_index_worker.js`** in the public kit. Strip Joe-specifics. Parameterize webhook secret and `EXPORT_API_KEY` to env vars (set by `wrangler secret put`). Use the same Module-scope helper extraction pattern that v1.7 used so the lifted helpers can be unit-tested.
+4. **Create `lofty-cowork-helper/workers/wrangler.leads-index.toml`** templated config. `workers_dev = true`, `preview_urls = false` (same security posture as Tier 2 and Tier 3). KV namespace id is a placeholder (`REPLACE_WITH_YOUR_LEADS_INDEX_KV_ID`). No Durable Object class needed (this is a free-tier Worker). Webhook secret and `EXPORT_API_KEY` are `wrangler secret put` values, NOT in the toml.
+5. **Create `lofty-cowork-helper/scripts/test_leads_index_worker.mjs`** Layer 1 unit tests. Parallel to the Tier 2 (`test_worker_parsers.mjs`) and Tier 3 (`test_showing_sms_worker.mjs`) test files. Cover: webhook receiver (auth via path-embedded secret, payload normalization, KV write), `/export` (bearer auth, full-index serialization, ids-meta freshness), `/lead/<id>` (bearer auth, single-record read, 404 path), `/bulk-import` (bearer auth, replace semantics, ids-meta rebuild), `/stats` (no auth, counters), `/` health-check. Run in plain Node, no Cloudflare account, no network.
+6. **Add a Tier 4 setup section in `references/workers_setup.md`** parallel to Tier 2 and Tier 3 structure: prereqs, test pyramid, Easy Mode walkthrough (10 steps or so, includes the Step 0 terminal-open guidance per v1.7 feedback memory), Power User Mode walkthrough (same steps with explicit shell commands), common errors, roll-back recipe. Webhook wire-up step needs Lofty UI guidance: Settings → API → Webhooks → list 2 → POST to `<your-worker>/webhook/<secret>`. The bootstrap step needs to run `python3 scripts/refresh_leads_index.py` to do the initial bulk-import from the file fallback.
+7. **Add a Tier 4 picker to `lofty-cowork-helper/SKILL.md`** parallel to Tier 2 and Tier 3 pickers. Triggers on "set up Tier 4," "deploy the leads-index Worker," "set up live leads index," "wire up the leads-index Worker." Prereq probe (Tier 1 done, Cloudflare MCP optional, Lofty plan has webhook access). Routes to Easy Mode or Power User Mode.
+8. **Update top-level `SKILL.md` description** with Tier 4 trigger phrases. Same pattern v1.7 used.
+9. **Update `references/extending.md`** Cloudflare Workers section to reflect leads-index as a v1.9.0 shipping item rather than "still optional."
+10. **`.gitignore`** add `.test-v1.9/` for Layer 3 E2E scratch.
+11. **`CHANGELOG.md`** v1.9.0 entry.
+12. **`HANDOFF.md`** updates (v1.9.0 SHIPPED section, status snapshot, stage status).
 
-### Test approach for Stage C
+### Test approach for v1.9.0
 
-Stage C is orchestration logic, not deterministic code paths, so the test pyramid is shaped differently than Tier 3:
+The Worker has more deterministic logic than the orchestration sub-skill but less than the SMS Worker (no Durable Objects, no alarm semantics). Test pyramid:
 
-- **Layer 1: read-through review.** The sub-skill is plain-English instructions for Claude, not Python or JavaScript. Joe and Claude do a side-by-side compare of the public-kit sub-skill against the saling-automation source to verify nothing Joe-specific leaked through and the conversational flow is intact.
-- **Layer 2: dry-run chat test.** Open a fresh Cowork chat session, install the v1.8.0-candidate `.skill`, ask "schedule a tour at 1234 NW Main, Portland for Jane Smith at 1pm Saturday" and verify the orchestration triggers, asks the right clarifying questions, and would call the right primitives. Stop short of actually firing the Lofty writes; just confirm the orchestration path.
-- **Layer 3: full E2E.** One real showing scheduled end to end against Joe's own lead. Watch the calendar invite land, the Lofty note appear, the post-showing SMS get queued. Use the v1.7.0 Tier 3 Worker (already deployed and working) so the SMS path is real.
+- **Layer 1: unit tests.** `test_leads_index_worker.mjs`. Lift module-scope helpers from the Worker source via the same string-replacement trick `test_worker_parsers.mjs` and `test_showing_sms_worker.mjs` already use. Cover the seven routes plus auth + normalization + KV index meta updates.
+- **Layer 2: deploy + smoke test in isolation.** Deploy to `leads-index-staging` on Joe's production Cloudflare account (separate Worker name, separate `LEADS_INDEX_STAGING` KV namespace). Hit each HTTP route with `curl`. Confirm webhook receiver, `/export`, `/lead/<id>`, `/bulk-import`, `/stats`, `/` all behave as expected. Tear down after.
+- **Layer 3: E2E with real Lofty webhook.** Wire Lofty webhook list 2 at Joe's actual account to a `leads-index-staging-e2e` Worker. Update a lead in Lofty (change stage, update phone). Watch the webhook fire and the KV row update. Confirm `api.find_client` with `LOFTY_LEADS_INDEX_SOURCE=worker` sees the change end to end. Tear down after.
 
-### Recommended order for the v1.8.0 session
+### Recommended order for the v1.9.0 session
 
 1. Read this section.
 2. Verify `~/Code/saling-automation/` is mounted (the source of truth).
-3. Read `saling-automation/.claude/skills/schedule-showing/SKILL.md` and catalogue Joe-specifics.
-4. Ask Joe about the packaging shape (sub-skill folder vs SKILL.md picker) before starting the port.
-5. Port + strip + parameterize.
-6. Update `SKILL.md`, `workflows.md`, `extending.md`, `CHANGELOG.md`, `HANDOFF.md`.
-7. Layer 1 review with Joe.
-8. Layer 2 dry-run chat test.
-9. Layer 3 E2E against Joe's own lead.
-10. Commit, tag v1.8.0, Joe pushes.
+3. Read both `leads_index_worker.js` and `leads_index_worker.v2_draft.js`. Confirm with Joe which one to use as canonical.
+4. Port + strip + parameterize the Worker, the wrangler config, and the unit tests.
+5. Add Tier 4 setup section to `references/workers_setup.md`.
+6. Add Tier 4 picker to `SKILL.md` and update the top-level description.
+7. Update `references/extending.md`, `CHANGELOG.md`, `HANDOFF.md`.
+8. Layer 1 unit tests must pass before any deploy.
+9. Layer 2 isolated staging deploy + smoke test.
+10. Layer 3 E2E against Joe's actual Lofty webhook list 2 (this is where the test-vs-production MCP decision matters).
+11. Tear down staging artifacts.
+12. Commit, tag v1.9.0, Joe pushes.
+
+### Open questions to resolve at port start
+
+1. **Which source variant?** Production (`leads_index_worker.js`) vs draft (`leads_index_worker.v2_draft.js`). Read both before deciding.
+2. **Webhook secret rotation strategy.** Production uses a fixed secret in the path. For the public kit, decide whether the Easy Mode walkthrough generates a fresh secret at install time and stores it, or whether the user supplies their own.
+3. **Test-vs-production MCP.** Layer 2 staging can run on the test account (`Jsaling31@gmail.com`). Layer 3 needs Joe's production Lofty account because webhook list 2 fires against the real lead database. Plan the swap to production accounts before Layer 3, then back to test if Joe prefers.
+4. **MLS code interaction.** None expected; the Worker doesn't care about MLS codes. Flag if anything surfaces during the read-through.
 
 ---
 
 ---
 
-## Status snapshot (May 11, 2026 evening, second session)
+## Status snapshot (May 11, 2026 evening, post-v1.8.0 ship)
 
-- **v1.8.0 SHIPPED.** Tag on local main, push to origin pending. Stage C ships: the `schedule-showing` orchestration sub-skill at `lofty-cowork-helper/skills/schedule-showing/SKILL.md`. Joe-specifics stripped, all references parameterized via the workspace `CLAUDE.md`. SKILL.md trigger phrases, routing block, and file map updated. `workflows.md` and `extending.md` get lead-in pointers; existing primitive recipes preserved as manual fallbacks. Closes the 25-point UX gap between the public kit and Joe's daily workflow. No new infrastructure, no new dependencies.
-- **v1.7.0 SHIPPED.** Tag on local main, push to origin pending. Tier 3 SMS Worker (`showing-sms`) with per-showing Durable Object alarms. Layer 3 E2E pass clean (633ms end-to-end precision, real SMS delivered to maintainer's phone). Adds ~620 lines across Worker, wrangler config, unit tests, Tier 3 walkthrough, and SKILL.md picker. Requires Cloudflare Workers Paid plan for installs.
+- **v1.8.0 SHIPPED to origin.** Commit `8699ad8` and tag on origin/main. Stage C ships: the `schedule-showing` orchestration sub-skill at `lofty-cowork-helper/skills/schedule-showing/SKILL.md`. Joe-specifics stripped, all references parameterized via the workspace `CLAUDE.md`. SKILL.md trigger phrases, routing block, and file map updated. `workflows.md` and `extending.md` get lead-in pointers; existing primitive recipes preserved as manual fallbacks. Closes the 25-point UX gap between the public kit and Joe's daily workflow. No new infrastructure, no new dependencies.
+- **v1.7.0 SHIPPED to origin.** Commit `e8b05dd` and tag on origin/main. Tier 3 SMS Worker (`showing-sms`) with per-showing Durable Object alarms. Layer 3 E2E pass clean (633ms end-to-end precision, real SMS delivered to maintainer's phone). Adds ~620 lines across Worker, wrangler config, unit tests, Tier 3 walkthrough, and SKILL.md picker. Requires Cloudflare Workers Paid plan for installs.
 - **v1.6.3 SHIPPED.** Tag pushed to origin. Single-file housekeeping patch removing the leftover `_tmp_worker_test.mjs` stub. Retroactively created the `v1.6.2` tag in the same session.
 - **v1.6.2 SHIPPED.** Tag pushed to origin. Pre-public-release doc cleanup pass. Pure doc edits, zero code or schema changes. Broken file pointers in `CLAUDE.md.template` fixed, "Tier 3 v1.6" stragglers in `SKILL.md` corrected to v1.7, Lofty API key path made consistent across `env-template`, `full-guide.md`, and the public `docs/index.html` page, stale "starter does NOT include showing helpers" wording in `workflows.md` rewritten, five em-dashes scrubbed from `workers_setup.md`, `README.md` repo-structure tree rewritten to reflect actual v1.6.1+ contents, `wrangler.jotform.toml` JOTFORM_FIELD_MAP comment reframed.
 - **v1.6.1 SHIPPED.** Tag on origin/main. Patch release fixing the first-time-user papercuts that v1.6 Easy Mode E2E testing surfaced. Canonical `JOTFORM_FIELD_MAP` default in toml; `workers_dev`/`preview_urls` pinned; doc rewrites covering MCP install, Lofty API token path, Cloudflare token dropdown gotchas, Jotform UI path updates, wrangler interactive prompts, SSL cert delay, and webhook UI path. Verified end-to-end against brand new accounts.
@@ -383,9 +401,9 @@ Decided across the May 7 and two May 8 design sessions. Do not revisit without s
 
 ### Stage A: COMPLETE through v1.4.1.
 
-### Stage C v1.8.0: COMPLETE (shipped 2026-05-11 evening as v1.8.0, push pending). Schedule-showing orchestration sub-skill ported from saling-automation. Joe-specifics stripped, parameterized via workspace `CLAUDE.md`. SKILL.md trigger phrases, routing block, file map updated. `workflows.md` and `extending.md` get lead-in pointers; primitive recipes preserved as manual fallbacks. The 25-point UX gap between the public kit and Joe's daily workflow is closed. No new infrastructure, no new dependencies.
+### Stage C v1.8.0: COMPLETE (shipped 2026-05-11 evening, pushed to origin). Schedule-showing orchestration sub-skill ported from saling-automation. Joe-specifics stripped, parameterized via workspace `CLAUDE.md`. SKILL.md trigger phrases, routing block, file map updated. `workflows.md` and `extending.md` get lead-in pointers; primitive recipes preserved as manual fallbacks. The 25-point UX gap between the public kit and Joe's daily workflow is closed. No new infrastructure, no new dependencies.
 
-### Stage B v1.7.0: COMPLETE (shipped 2026-05-11 as v1.7.0, push pending). Tier 3 SMS Worker (`showing-sms`) with per-showing Durable Object alarms. Layer 3 E2E pass clean (633ms precision, real SMS delivered). The headline functional jump for the public kit is now closed; Tier 3 polish (leads-index in v1.9.0, short-links decision in v1.9.1) is opt-in.
+### Stage B v1.7.0: COMPLETE (shipped 2026-05-11, pushed to origin). Tier 3 SMS Worker (`showing-sms`) with per-showing Durable Object alarms. Layer 3 E2E pass clean (633ms precision, real SMS delivered). The headline functional jump for the public kit is now closed; Tier 3 polish (leads-index in v1.9.0, short-links decision in v1.9.1) is opt-in.
 
 ### Stage B v1.6.3: COMPLETE (shipped 2026-05-11 as v1.6.3, pushed to origin). Housekeeping patch closing out the v1.6.2 deferred list. `_tmp_worker_test.mjs` deleted. `__pycache__/.pyc` removed from disk. `v1.6.2` tag retroactively created on commit 21ffa14. Three deferred items (HANDOFF.md, lofty-api-guide.md, RESEARCH_NOTES_2026-05-07.md) intentionally kept in place per Joe's call.
 
@@ -424,24 +442,17 @@ Port `.claude/skills/schedule-showing/SKILL.md` from `saling-automation`. Add Ph
 ## Where everything lives (current state)
 
 - **Skill source:** `/Users/joesaling/Code/lofty-cowork-skill/lofty-cowork-helper/`
-- **New v1.5 files** (added in May 8 second session, all under `lofty-cowork-helper/`):
-  - `workers/jotform_to_lofty_worker.js`
-  - `workers/migrations/001_showing_feedback.sql`
-  - `workers/wrangler.jotform.toml`
-  - `references/workers_setup.md`
-  - `assets/jotform_form_template.md`
-  - `scripts/test_worker_parsers.mjs`
-- **Updated v1.5 files:**
-  - `assets/post_showing_questions.yaml` (header_html parameterized with brand tokens)
-  - `assets/env-template` (added OWNER_WEBSITE; reframed RESEND_API_KEY as optional)
-- **Packaged skill file:** `/Users/joesaling/Code/lofty-cowork-skill/lofty-cowork-helper.skill` (v1.4.1, ~90 KB, gitignored). Will be repackaged at v1.5 release.
 - **Production reference:** `/Users/joesaling/Code/saling-automation/` (mounted; grant via `mcp__cowork__request_cowork_directory` if missing).
 - **Public web page source:** `docs/index.html`
 - **Recipient-facing docs:** `INSTALL.md`, `README.md`, `LICENSE`, `CHANGELOG.md`
 - **Distributor docs:** `PACKAGING.md`
 - **References:** `lofty-cowork-helper/references/{full-guide,quirks,workflows,extending,calendar_routing,workers_setup}.md`
 - **Assets:** `lofty-cowork-helper/assets/{lofty_api.py,env-template,CLAUDE.md.template,ics_builder.py,post_showing_questions.yaml,jotform_form_template.md}`
-- **Scripts:** `lofty-cowork-helper/scripts/{setup_check.py,refresh_leads_index.py,test_v1_2_methods.py,test_v1_3_methods.py,test_worker_parsers.mjs}`
+- **Scripts:** `lofty-cowork-helper/scripts/{setup_check.py,refresh_leads_index.py,test_v1_2_methods.py,test_v1_3_methods.py,test_worker_parsers.mjs,test_showing_sms_worker.mjs}`
+- **Workers:** `lofty-cowork-helper/workers/{jotform_to_lofty_worker.js,showing_sms_worker.js,wrangler.jotform.toml,wrangler.showing-sms.toml,migrations/001_showing_feedback.sql}`
+- **Sub-skills:** `lofty-cowork-helper/skills/schedule-showing/SKILL.md` (v1.8.0, orchestration sub-skill)
+- **v1.9.0 will add:** `lofty-cowork-helper/workers/leads_index_worker.js`, `lofty-cowork-helper/workers/wrangler.leads-index.toml`, `lofty-cowork-helper/scripts/test_leads_index_worker.mjs`, plus a Tier 4 section in `references/workers_setup.md` and a Tier 4 picker in `SKILL.md`.
+- **Packaged skill file:** `/Users/joesaling/Code/lofty-cowork-skill/lofty-cowork-helper.skill` (gitignored). Repackaged at each release.
 - **Repackage command:** `cd /sessions/<your-session>/mnt/.claude/skills/skill-creator && python3 -m scripts.package_skill /sessions/<your-session>/mnt/lofty-cowork-skill/lofty-cowork-helper /sessions/<your-session>/mnt/lofty-cowork-skill`
 
 `calendar_routing.md` and `ics_builder.py` exist but are demoted per locked decision #6.
@@ -454,11 +465,12 @@ Port `.claude/skills/schedule-showing/SKILL.md` from `saling-automation`. Add Ph
 2. **`lofty-api-guide.md` at the repo root (DEFERRED).** A ~605-line standalone field manual that heavily duplicates `references/full-guide.md`, `references/quirks.md`, and `references/extending.md`. Grep returns zero internal references. Joe opted to leave it in place. Revisit any time.
 3. **`RESEARCH_NOTES_2026-05-07.md` at the repo root (DEFERRED).** May 7 deep-probe working brief, ~14KB. Same family as `lofty-api-guide.md`. Joe opted to leave it in place. Revisit any time.
 4. **`v1.4.1` git tag.** Commit `f027a87` was on origin/main but no tag was created at v1.4.1 ship time. If Joe wants release-tag parity with v1.4.0, tag it. Otherwise skip.
-5. **Cut the short-links Worker from the public skill?** Locked decision #11 flagged this for investigation at v1.7. Joe to confirm at that time.
+5. **Cut the short-links Worker from the public skill?** Locked decision #11 flagged this for investigation. Pinned to the v1.9.1 ladder; resolve after v1.9.0 ships.
 6. **Slide deck for Joe's realtor talk.** Joe was building a 12-slide deck in Claude Design at `claude.ai/design`, project name "Lofty + Claude for Realtors - 25 min Talk." Verify state separately from engineering work.
 7. **Lofty API key rotation.** Hold until Phase 2 is fully deployed so it's a single rotation pass.
+8. **Duplicate uppercase-V tags on origin.** `git fetch` after the v1.8.0 push surfaced `V1.6.2` and `V1.6.3` (capital V) as separate tags alongside the lowercase ones. Likely a GitHub Desktop artifact. One-line patch sometime to delete the uppercase variants.
 
-**RESOLVED in v1.6.3:** `_tmp_worker_test.mjs` deleted. `__pycache__/.pyc` deleted from disk. v1.6.2 tag created retroactively (push pending).
+**RESOLVED in v1.6.3:** `_tmp_worker_test.mjs` deleted. `__pycache__/.pyc` deleted from disk. v1.6.2 tag created retroactively (now pushed to origin as of the v1.8.0 ship session).
 
 The form-import migration path question is RESOLVED (Path B, one codebase). The branding-before-form-creation question is RESOLVED (locked decision #12).
 
@@ -494,8 +506,8 @@ Public-facing template wording for the kit's homepage, README, and INSTALL:
 Phase 2 disclosure expansions per tier:
 
 - v1.5 ship: lead data passes through Cloudflare (Worker + D1), Jotform (form submissions), and optionally Resend (only if the user enables it). Add these as named third parties.
-- v1.6 ship: SMS feedback texts route through Lofty's SMS endpoint (already covered) but the Worker schedule queue runs on Cloudflare. No new third parties beyond v1.5.
-- v1.7 ship: leads-index Worker reads webhook events from Lofty and stores them in Cloudflare KV. Same providers. If short-links Worker ships, the redirector domain becomes a new visible touchpoint for buyers.
+- v1.7 ship: SMS feedback texts route through Lofty's SMS endpoint (already covered) but the showing-sms Worker schedule queue runs on Cloudflare KV + Durable Objects. No new third parties.
+- v1.9 ship: leads-index Worker reads webhook events from Lofty and stores them in Cloudflare KV. Same providers; the lead-data flow direction is new (Lofty pushes to Cloudflare KV on update). If short-links Worker ships at v1.9.1, the redirector domain becomes a new visible touchpoint for buyers.
 
 ---
 
@@ -510,10 +522,10 @@ These details belong in HANDOFF.md and `docs/index.html` ONLY. Not in the public
 ## Recommended order for the next session
 
 1. Read this HANDOFF.md (you're doing it now).
-2. Verify the production reference is mounted and the public skill working tree is clean (silent checks per the QUICK START). Latest tag should be `v1.6.2`.
-3. Run the parser smoke test to confirm the Worker still works: `node lofty-cowork-helper/scripts/test_worker_parsers.mjs`. Should print "All parser smoke tests passed." (v1.6.2 was pure doc edits, but the smoke test is the fastest single check that nothing was inadvertently touched in `workers/jotform_to_lofty_worker.js`.)
-4. Ask Joe what to push into next (use AskUserQuestion). The three real options are: close the pre-release loose ends (Outstanding decisions 1 through 4), Tier 3 SMS Worker port (v1.7), or Stage C (schedule-showing sub-skill).
-5. If Joe picks the pre-release path, the four items are small and can land in a single v1.6.3 patch: move or gitignore HANDOFF.md, move or delete lofty-api-guide.md, delete `_tmp_worker_test.mjs`, add `__pycache__/` to `.gitignore`. None of these touch code or schema.
-6. When porting code into Joe's production: every Worker URL, every account ID, every secret value still applies. Use the Cloudflare MCP for read-only inspection during development; reserve `wrangler` for actual deploys and `wrangler secret put`.
+2. Verify the production reference is mounted and the public skill working tree is clean (silent checks per the QUICK START). Latest tag should be `v1.8.0`.
+3. Run both smoke tests to confirm nothing has rotted: `node lofty-cowork-helper/scripts/test_worker_parsers.mjs` and `node lofty-cowork-helper/scripts/test_showing_sms_worker.mjs`. Both should pass cleanly.
+4. The next step is v1.9.0 (leads-index Worker). Lead with the QUICK START's first user-facing message and proceed directly to the v1.9.0 plan section below.
+5. Optional skip path: if Joe wants v2.0.0 sooner, park v1.9.0 and start a packaging audit instead. Confirm with Joe before deviating from the v1.9.0 plan.
+6. When porting code: use the Cloudflare MCP for read-only inspection during development; reserve `wrangler` for actual deploys and `wrangler secret put`. Note the MCP state warning at the top of QUICK START; the test-vs-production swap matters more for v1.9.0 than it did for v1.8.0 because Layer 3 E2E hits Lofty webhook list 2 at the real account.
 
 Do NOT delete this HANDOFF.md until Phase 2 is finished and shipped. Joe wants it kept as the working brief. The decision about how to keep HANDOFF.md OUT of the public package is Outstanding decision #1.
