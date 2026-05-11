@@ -8,7 +8,11 @@ This file gets a new Claude Cowork session up to speed on the **Phase 2** build 
 
 > Joe opened a new prompt and typed "Read Handoff.md and continue conversation." Follow this section to pick up exactly where we left off. Do NOT recap the prior session's work back to Joe; he was there. Get to the point.
 
-**Where we left off (May 10, 2026 evening):** v1.6.2 is shipped (tag `v1.6.2` on origin/main as of May 10 evening). It is a pure pre-public-release doc cleanup pass on top of v1.6.1. Nothing has gone public yet, so this is the last cleanup window before the first outside install. Zero code changes. Zero Worker changes. Zero schema changes. Pure doc drift fixes: broken file pointers in `CLAUDE.md.template`, "Tier 3 v1.6" stragglers in `SKILL.md` corrected to v1.7, Lofty API key path made consistent across `env-template`, `full-guide.md`, and the public `docs/index.html` GitHub Pages page, stale "starter does NOT include showing helpers" wording in `workflows.md`, five em-dashes scrubbed out of `workers_setup.md` per the brand rule, `README.md` repo-structure tree rewritten to reflect actual v1.6.1+ contents, and the `wrangler.jotform.toml` JOTFORM_FIELD_MAP comment block reframed to lead with the new working default. Existing v1.6.1 installs continue running without redeploy.
+**Where we left off (May 11, 2026):** v1.6.3 is shipped locally (commit + tag on the local main branch, NOT YET PUSHED to origin as of this session). It is a one-file housekeeping patch that removes the leftover `_tmp_worker_test.mjs` scratch stub. Zero code changes. Zero Worker changes. Zero schema changes. The skill triggers and Worker behavior are byte-identical to v1.6.2. Also created retroactively in the same session: the `v1.6.2` git tag on commit 21ffa14 (the actual v1.6.2 release commit). v1.6.2 had been documented as tagged in HANDOFF but the tag itself was never made. Both `v1.6.2` and `v1.6.3` tags are local-only until the next push.
+
+Three of the four deferred pre-release items from v1.6.2 were intentionally left in place per Joe's call: `HANDOFF.md` stays in the public repo, `lofty-api-guide.md` stays at the repo root, and `RESEARCH_NOTES_2026-05-07.md` stays at the repo root. The fourth item (the `__pycache__/` local-only `.pyc`) was deleted from disk in the same pass. The skill repo is now ready for the first outside install, contingent on Joe pushing the v1.6.3 commit and both tags from GitHub Desktop or his terminal.
+
+Before v1.6.3 (still relevant context): v1.6.2 was a pure pre-public-release doc cleanup pass on top of v1.6.1. Pure doc drift fixes: broken file pointers in `CLAUDE.md.template`, "Tier 3 v1.6" stragglers in `SKILL.md` corrected to v1.7, Lofty API key path made consistent across `env-template`, `full-guide.md`, and the public `docs/index.html` GitHub Pages page, stale "starter does NOT include showing helpers" wording in `workflows.md`, five em-dashes scrubbed out of `workers_setup.md` per the brand rule, `README.md` repo-structure tree rewritten to reflect actual v1.6.1+ contents, and the `wrangler.jotform.toml` JOTFORM_FIELD_MAP comment block reframed to lead with the new working default. Existing v1.6.1 installs continue running without redeploy.
 
 Before v1.6.2 (still relevant context): v1.6.1 fixed first-time-user papercuts surfaced by an end-to-end test of v1.6 Easy Mode against brand new Jotform and Cloudflare accounts. One real code fix (canonical `JOTFORM_FIELD_MAP` default in `wrangler.jotform.toml` so fresh template clones route qid 51 correctly; previously it was `"{}"` and `memory_notes` data dropped silently) plus `workers_dev`/`preview_urls` explicit toml settings plus a substantial doc rewrite covering MCP install prereq, Lofty API token retrieval, Cloudflare token Account/Zone Resources dropdowns, Jotform UI path updates, wrangler interactive prompts, workers.dev SSL cert propagation delay, and the Jotform UI webhook wiring fix.
 
@@ -19,19 +23,39 @@ The Tier 3 SMS Worker port from `saling-automation/worker/showing_sms_worker.js`
 **Do these checks silently first (do NOT narrate them to Joe):**
 
 1. Verify `~/Code/saling-automation/` is mounted via `mcp__cowork__request_cowork_directory`. If not, request it.
-2. Run `git log --oneline -5` on `~/Code/lofty-cowork-skill`. Confirm `v1.6.2` tag is on the latest commit and the working tree is clean.
-3. Run `node lofty-cowork-helper/scripts/test_worker_parsers.mjs`. Should print "All parser smoke tests passed." (Reassures you that v1.6.2's pure-doc edits did not accidentally touch any code path.)
+2. Run `git log --oneline -5` on `~/Code/lofty-cowork-skill`. Confirm `v1.6.3` tag is on the latest commit and the working tree is clean. If `git ls-remote --tags origin` does NOT show `v1.6.2` and `v1.6.3`, the push from the v1.6.3 session never happened. Ask Joe to push from GitHub Desktop before doing anything else.
+3. Run `node lofty-cowork-helper/scripts/test_worker_parsers.mjs`. Should print "All parser smoke tests passed." (Reassures you that v1.6.3's single-file deletion did not accidentally touch any code path.)
 4. Check MCP state: call `mcp__c55037a8-92bb-4dab-ab11-9e055ea57019__accounts_list`. If the result names `Jsaling31@gmail.com's Account`, the MCPs are still on the test accounts (per the MCP STATE WARNING above). Surface this to Joe in your first message if true.
 5. Read the "v1.7 ladder" section below so you know what comes next.
-6. Skim the "Outstanding decisions" section. Two pre-public-release decisions are deferred from v1.6.2 and should be raised before the first public install: (a) what to do with HANDOFF.md (currently in the public repo, contains owner identity and brand-voice rules) and (b) what to do with `lofty-api-guide.md` at the repo root (duplicates the references/ docs and nothing references it).
+6. Note: the four deferred pre-release items from v1.6.2 are RESOLVED. `_tmp_worker_test.mjs` was deleted in v1.6.3. The `__pycache__/` `.pyc` was deleted from disk in the same pass. HANDOFF.md, `lofty-api-guide.md`, and `RESEARCH_NOTES_2026-05-07.md` were intentionally left in place per Joe's choice.
 
 **Then, as your FIRST user-facing message, ask Joe what to work on next:**
 
-> v1.6.2 is shipped (tagged 2026-05-10 evening, doc cleanup pass before the first public install). Three viable next directions: (1) Address the two open pre-release decisions (HANDOFF.md placement and lofty-api-guide.md disposition) plus the small housekeeping items (`_tmp_worker_test.mjs` leftover, `__pycache__/` cache) so the next push is the actual public release. (2) Tier 3 SMS Worker port (v1.7, headline functional item, Workers Paid plan required). (3) Stage C (schedule-showing orchestration sub-skill, smaller scope). Which way?
+> v1.6.3 is shipped (housekeeping patch, May 11). The pre-release loose ends are now closed. Two viable next directions: (1) Tier 3 SMS Worker port (v1.7, headline functional item, Workers Paid plan required). (2) Stage C (schedule-showing orchestration sub-skill, smaller scope). Which way?
 
 If the MCP state check shows test accounts still connected, lead with: "Quick heads up before we start: your Cloudflare and Jotform MCPs are still on the test accounts from the v1.6.1 E2E session. Want to swap them back to your production accounts first?"
 
-Use AskUserQuestion with options like "Close the pre-release loose ends," "Push into Tier 3 SMS Worker (v1.7)," "Push into Stage C (schedule-showing sub-skill)," or "Other."
+Use AskUserQuestion with options like "Push into Tier 3 SMS Worker (v1.7)," "Push into Stage C (schedule-showing sub-skill)," "Swap MCPs back to production accounts," or "Other."
+
+---
+
+## v1.6.3 SHIPPED (2026-05-11)
+
+Tag `v1.6.3` on local main, NOT YET PUSHED to origin as of this session. Single-file housekeeping patch closing out the v1.6.2 deferred list. What landed:
+
+- **Removed:** `lofty-cowork-helper/scripts/_tmp_worker_test.mjs`. The file had been trimmed to a 263-byte self-describing stub ("Stale scratch file from a prior session. Safe to delete; not loaded by anything.") in an earlier session. Deleting it now so the next `.skill` repackage does not pick up the dead path.
+- **Local-only cleanup:** `lofty-cowork-helper/assets/__pycache__/lofty_api.cpython-310.pyc` and the empty `__pycache__/` dir removed from the working tree. The file was never tracked in git (`__pycache__/` has been in `.gitignore` since v1.0.0) but it existed on disk and would have been swept into the next `.skill` package.
+- **Retroactive tagging:** The `v1.6.2` git tag was created on commit 21ffa14 (the actual v1.6.2 release commit). HANDOFF.md had claimed the tag was made at v1.6.2 ship time; it wasn't. Local-only at the moment, will go to origin together with v1.6.3.
+- `CHANGELOG.md`: v1.6.3 entry added.
+
+**Three v1.6.2 deferred items intentionally kept in place per Joe's call:**
+- `HANDOFF.md` stays in the public repo. It doubles as the working brief for the next Claude session; the owner identity inside it is already public via `docs/index.html`.
+- `lofty-api-guide.md` stays at the repo root. Duplication with `references/full-guide.md` etc. is documented but the file is not a hazard.
+- `RESEARCH_NOTES_2026-05-07.md` stays at the repo root for the same reason.
+
+**Push status (as of this session):** Local tags `v1.6.2` and `v1.6.3` and the v1.6.3 commit have NOT YET been pushed to origin. The next push must include the commit and both tags (`git push origin main` + `git push origin v1.6.2 v1.6.3`, or in GitHub Desktop: Push to origin, then Repository → Push tags).
+
+**Smoke test:** `node lofty-cowork-helper/scripts/test_worker_parsers.mjs` still prints "All parser smoke tests passed." after the deletion. The Worker is byte-identical to v1.6.2.
 
 ---
 
@@ -138,9 +162,10 @@ Recommend (1) first since Tier 3 is the biggest functional jump remaining for th
 
 ---
 
-## Status snapshot (May 10, 2026 evening)
+## Status snapshot (May 11, 2026)
 
-- **v1.6.2 SHIPPED.** Tag on origin/main. Pre-public-release doc cleanup pass. Pure doc edits, zero code or schema changes. Broken file pointers in `CLAUDE.md.template` fixed, "Tier 3 v1.6" stragglers in `SKILL.md` corrected to v1.7, Lofty API key path made consistent across `env-template`, `full-guide.md`, and the public `docs/index.html` page, stale "starter does NOT include showing helpers" wording in `workflows.md` rewritten, five em-dashes scrubbed from `workers_setup.md`, `README.md` repo-structure tree rewritten to reflect actual v1.6.1+ contents, `wrangler.jotform.toml` JOTFORM_FIELD_MAP comment reframed.
+- **v1.6.3 SHIPPED.** Tag on local main, push to origin pending. Single-file housekeeping patch removing the leftover `_tmp_worker_test.mjs` stub. Also retroactively created the `v1.6.2` tag on commit 21ffa14 (the release commit) since HANDOFF had claimed it was tagged but it never was. Both tags local-only until pushed.
+- **v1.6.2 SHIPPED.** Tag now on local main (retroactively created in the v1.6.3 session), push pending. Pre-public-release doc cleanup pass. Pure doc edits, zero code or schema changes. Broken file pointers in `CLAUDE.md.template` fixed, "Tier 3 v1.6" stragglers in `SKILL.md` corrected to v1.7, Lofty API key path made consistent across `env-template`, `full-guide.md`, and the public `docs/index.html` page, stale "starter does NOT include showing helpers" wording in `workflows.md` rewritten, five em-dashes scrubbed from `workers_setup.md`, `README.md` repo-structure tree rewritten to reflect actual v1.6.1+ contents, `wrangler.jotform.toml` JOTFORM_FIELD_MAP comment reframed.
 - **v1.6.1 SHIPPED.** Tag on origin/main. Patch release fixing the first-time-user papercuts that v1.6 Easy Mode E2E testing surfaced. Canonical `JOTFORM_FIELD_MAP` default in toml; `workers_dev`/`preview_urls` pinned; doc rewrites covering MCP install, Lofty API token path, Cloudflare token dropdown gotchas, Jotform UI path updates, wrangler interactive prompts, SSL cert delay, and webhook UI path. Verified end-to-end against brand new accounts.
 - **v1.6.0 SHIPPED.** Template-clone path live. Public template form `261294238566162` published in Joe's Jotform account with Prevent Cloning OFF.
 - Phase 2 Stage A is COMPLETE through v1.4.1. Showing primitives, leads index, post-showing question pack, full read coverage of the API surface, Content-Type bug fix, find_client fallback for unsynced contacts.
@@ -217,7 +242,9 @@ Decided across the May 7 and two May 8 design sessions. Do not revisit without s
 ## Stage status
 
 ### Stage A: COMPLETE through v1.4.1.
-### Stage B v1.6.2: COMPLETE (shipped 2026-05-10 evening as v1.6.2). Pre-public-release doc cleanup pass. Pure doc edits, zero code or schema changes. The skill is now internally consistent and ready for the first outside install once the four deferred pre-release items (HANDOFF.md placement, lofty-api-guide.md disposition, `_tmp_worker_test.mjs` cleanup, `__pycache__` gitignore) are resolved.
+### Stage B v1.6.3: COMPLETE (shipped 2026-05-11 as v1.6.3, push pending). Housekeeping patch closing out the v1.6.2 deferred list. `_tmp_worker_test.mjs` deleted. `__pycache__/.pyc` removed from disk. `v1.6.2` tag retroactively created on commit 21ffa14. Three deferred items (HANDOFF.md, lofty-api-guide.md, RESEARCH_NOTES_2026-05-07.md) intentionally kept in place per Joe's call.
+
+### Stage B v1.6.2: COMPLETE (shipped 2026-05-10 evening as v1.6.2). Pre-public-release doc cleanup pass. Pure doc edits, zero code or schema changes.
 
 ### Stage B v1.6.1: COMPLETE (shipped 2026-05-10 evening as v1.6.1). Template-clone path live AND verified end-to-end against fresh accounts. Tier 3 SMS Worker NOT included; remains pinned for v1.7.
 
@@ -278,14 +305,15 @@ Port `.claude/skills/schedule-showing/SKILL.md` from `saling-automation`. Add Ph
 
 ## Outstanding decisions
 
-1. **`HANDOFF.md` placement (pre-release).** This file is in the public repo as of v1.6.2. It contains owner identity (Joe's name, email, phone, Cloudflare account ID `22c50f7ac3f85d789dfec570642ae9af`, production D1 id `2d6dd086-c086-457c-a03e-11500da56f08`, production Worker subdomain `joe-2c5`), brand voice rules, and explicit instructions for the next Claude session ("Do NOT recap the prior session's work back to Joe"). Per locked decision #1 the public skill is supposed to be a pure template, so HANDOFF.md technically violates that. Joe opted to keep it for now because it is also the working brief for the next session. Two options to close this before the first public install: (a) move to a `.private/` folder and exclude from the packaging script's input, or (b) add `HANDOFF.md` to `.gitignore` so it stays only on Joe's machine.
-2. **`lofty-api-guide.md` at the repo root (pre-release).** A ~605-line standalone field manual that heavily duplicates `references/full-guide.md`, `references/quirks.md`, and `references/extending.md`. Grep returns zero internal references. Likely a leftover from an earlier release. Recommend moving to `_archive/` (recoverable) or deleting outright before the first public install.
-3. **`lofty-cowork-helper/scripts/_tmp_worker_test.mjs` cleanup (pre-release).** Looks like a leftover scratch file from worker parser testing. Probably should not ship in the `.skill` package. Delete or move.
-4. **`lofty-cowork-helper/assets/__pycache__/lofty_api.cpython-310.pyc` (pre-release).** Python bytecode cache. Add `__pycache__/` to `.gitignore` and remove from the repo before packaging.
-5. **`v1.4.1` git tag.** Commit `f027a87` was on origin/main but no tag was created at v1.4.1 ship time. If Joe wants release-tag parity with v1.4.0, tag it before v1.5. Otherwise skip.
-6. **Cut the short-links Worker from the public skill?** Locked decision #11 flagged this for investigation at v1.7. Joe to confirm at that time.
-7. **Slide deck for Joe's realtor talk.** Joe was building a 12-slide deck in Claude Design at `claude.ai/design`, project name "Lofty + Claude for Realtors - 25 min Talk." Verify state separately from engineering work.
-8. **Lofty API key rotation.** Hold until Phase 2 is fully deployed so it's a single rotation pass.
+1. **`HANDOFF.md` placement (DEFERRED).** This file is in the public repo. It contains owner identity (Joe's name, email, phone, Cloudflare account ID `22c50f7ac3f85d789dfec570642ae9af`, production D1 id `2d6dd086-c086-457c-a03e-11500da56f08`, production Worker subdomain `joe-2c5`), brand voice rules, and explicit instructions for the next Claude session. Per locked decision #1 the public skill is supposed to be a pure template, so HANDOFF.md technically violates that. Joe opted to keep it as-is for now (working brief for the next session). Revisit any time.
+2. **`lofty-api-guide.md` at the repo root (DEFERRED).** A ~605-line standalone field manual that heavily duplicates `references/full-guide.md`, `references/quirks.md`, and `references/extending.md`. Grep returns zero internal references. Joe opted to leave it in place. Revisit any time.
+3. **`RESEARCH_NOTES_2026-05-07.md` at the repo root (DEFERRED).** May 7 deep-probe working brief, ~14KB. Same family as `lofty-api-guide.md`. Joe opted to leave it in place. Revisit any time.
+4. **`v1.4.1` git tag.** Commit `f027a87` was on origin/main but no tag was created at v1.4.1 ship time. If Joe wants release-tag parity with v1.4.0, tag it. Otherwise skip.
+5. **Cut the short-links Worker from the public skill?** Locked decision #11 flagged this for investigation at v1.7. Joe to confirm at that time.
+6. **Slide deck for Joe's realtor talk.** Joe was building a 12-slide deck in Claude Design at `claude.ai/design`, project name "Lofty + Claude for Realtors - 25 min Talk." Verify state separately from engineering work.
+7. **Lofty API key rotation.** Hold until Phase 2 is fully deployed so it's a single rotation pass.
+
+**RESOLVED in v1.6.3:** `_tmp_worker_test.mjs` deleted. `__pycache__/.pyc` deleted from disk. v1.6.2 tag created retroactively (push pending).
 
 The form-import migration path question is RESOLVED (Path B, one codebase). The branding-before-form-creation question is RESOLVED (locked decision #12).
 

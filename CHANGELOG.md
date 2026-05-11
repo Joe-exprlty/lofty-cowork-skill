@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [1.6.3] - 2026-05-11
+
+Single-file housekeeping patch. Removes the only leftover scratch stub flagged in the v1.6.2 deferred list. No code changes. No Worker changes. No schema changes. The skill triggers and Worker behavior are byte-identical to v1.6.2. Existing installs do not need to redeploy. The v1.6.2 git tag, which had been documented as shipped but was never actually created on origin, was also created retroactively on commit 21ffa14 as part of this pass.
+
+### Removed
+- `lofty-cowork-helper/scripts/_tmp_worker_test.mjs`. The file had been trimmed to a 263-byte self-describing stub ("Stale scratch file from a prior session. Safe to delete; not loaded by anything.") in an earlier session. Deleting it now so the next `.skill` repackage does not pick up the dead path.
+
+### Fixed
+- Local-only: removed `lofty-cowork-helper/assets/__pycache__/lofty_api.cpython-310.pyc` and the empty `__pycache__/` dir from the working tree. The file was never tracked in git (the `__pycache__/` ignore rule has been in `.gitignore` since v1.0.0) but it existed on disk and would have been swept into the next `.skill` package by the packager's verbatim asset copy.
+
+### Notes
+- Three of the four deferred pre-release items from v1.6.2 were intentionally left in place per the maintainer's decision: `HANDOFF.md` stays in the public repo (it doubles as the working brief for the next Claude session, and the owner identity inside it is already public via `docs/index.html`), `lofty-api-guide.md` stays at the repo root (the duplication with `references/full-guide.md` etc. is documented but the file is not a hazard), and `RESEARCH_NOTES_2026-05-07.md` stays at the repo root for the same reason. These can be revisited at any future cleanup pass.
+- The `v1.6.2` tag was created retroactively on commit 21ffa14 (the actual v1.6.2 release commit) as part of this pass. Local-only initially; push to origin together with the v1.6.3 changes.
+
+---
+
 ## [1.6.2] - 2026-05-10
 
 Pre-public-release cleanup pass. No code changes. No Worker changes. No schema changes. Sweeps a set of doc drift, broken pointers, and brand-voice violations that an audit surfaced before the skill ships to anyone outside Joe's machine. Existing v1.6.1 installs continue to run without re-deploy. The fixes matter only for new installs and for the public GitHub Pages landing page.
