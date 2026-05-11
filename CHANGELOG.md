@@ -6,6 +6,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [1.7.0] - 2026-05-11
+
+Tier 3 ships. Adds the showing-reminder SMS Worker (`showing-sms`), a second Cloudflare Worker that fires the post-showing feedback text at the exact moment a showing starts. Uses per-showing Durable Object alarms (no cron, no polling, no idle wakeups). Validated end-to-end against the maintainer's production Cloudflare account using a separate Worker name (`showing-sms-staging`) so no second paid plan was needed. SMS landed on a real phone at 633ms precision relative to send_at.
+
+This release REQUIRES the Cloudflare Workers Paid plan ($5/mo) on the deploying account because Durable Objects are not available on the free tier. The Tier 2 (post-showing feedback) and the rest of the skill continue to run on the free tier; only Tier 3 needs paid. The new Tier 3 picker in `SKILL.md` gates on this prereq before routing users into the setup walkthrough.
+
+### Added
+- `lofty-cowork-helper/workers/showing_sms_worker.js`. Ported from a production implementation that has been running at 162ms alarm precision since April. Joe-specifics stripped: the hardcoded "Joe" in the SMS body is now parameterized as the `OWNER_FIRST_NAME` env var (defaults to "your agent" if unset). Module-scope helpers (`isAuthorized`, `kvKeyFor`, `validateEnqueueBody`, `buildQueueEntry`, `buildSmsBody`) refactored from inline blocks so they can be lifted for unit testing. DO alarm semantics, KV index shape, and HTTP route surface are byte-identical to production.
+- `lofty-cowork-helper/workers/wrangler.showing-sms.toml`. Templated config. `workers_dev = true` and `preview_urls = false` pinned (closes the same preview-URLs leak surface that v1.6.1 closed for Tier 2). KV namespace id is a placeholder (`REPLACE_WITH_YOUR_SHOWING_SMS_QUEUE_KV_ID`). Append-only `[[migrations]]` block auto-creates the `ShowingTimer` Durable Object class on first deploy. No cron trigger.
+- `lofty-cowork-helper/scripts/test_showing_sms_worker.mjs`. Layer 1 of the Tier 3 test pyramid. 36 assertions covering auth, KV key shape, request validation (happy path, null body, string body, every missing-field permutation, invalid send_at), queue entry build (every field, default-empty optionals), and SMS body format (client name, owner name, address, URL, time cue, full format, owner name swappable). Runs in plain Node, no Cloudflare account, no network. Lifts module-scope helpers from the Worker source via the same string-replacement trick used by `test_worker_parsers.mjs` for Tier 2.
+- `references/workers_setup.md` "Tier 3 setup" section. Parallel structure to Tier 2: prereqs (with the new Workers Paid plan check), test pyramid (the three layers), Easy Mode walkthrough (9 steps including a Step 0 that spells out how to open a terminal for non-developer users), Power User Mode walkthrough (same 9 steps with explicit shell commands), Tier 3 specific common errors, and the roll-back recipe.
+- `SKILL.md` "Tier 3 setup: showing-reminder SMS Worker" picker. Trigger phrases include "set up Tier 3," "deploy the SMS Worker," "set up showing reminders," "set up post-showing SMS," and "wire up the showing-sms Worker." Silent prereq check probes for Workers Paid before routing into Easy or Power User Mode. Top-level description and "How to start a session" routing both updated to include Tier 3 trigger phrases.
+
+### Changed
+- `SKILL.md` file map. Adds `workers/showing_sms_worker.js`, `workers/wrangler.showing-sms.toml`, and `scripts/test_showing_sms_worker.mjs`. `references/workers_setup.md` description updated from "Tier 2 deploy runbook" to "Tier 2 + Tier 3 deploy runbook with Easy Mode and Power User Mode walkthroughs for both tiers." The "Other Cloudflare Workers" line in "Extending the skill" now lists only leads-index and short-links since `showing-sms` is shipping in this release.
+- `.gitignore`. Adds `.test-v1.7/` (Tier 3 Layer 3 staging scratch, gitignored) and `.wrangler/` (wrangler's local cache that appears when wrangler runs from the repo root).
+
+### Validated
+- Layer 1 unit tests: 36/36 passing. All deterministic helpers locked.
+- Layer 3 E2E pass against the maintainer's production Cloudflare account using a separate Worker name (`showing-sms-staging`) and a separate KV namespace (`SHOWING_SMS_QUEUE_STAGING`), torn down after the test. Enqueued a 90-second-out showing against the maintainer's own lead. Result: DO alarm fired at `sent_at: 2026-05-11T20:11:32.633Z` versus `send_at: 2026-05-11T20:11:32Z`, a 633ms delta end-to-end. Lofty accepted the SMS for delivery (`messageId` returned, `phoneNumber` matched), and the SMS landed on the maintainer's real phone at the correct time. KV audit row flipped from `pending` to `sent` with `sent_at`, `sent_to_phone`, and `sent_message` populated as expected. The `OWNER_FIRST_NAME` env var flowed through to the SMS body correctly ("Hi Joe, it's Joe" because the test lead was the maintainer; in production this would be "Hi {client first name}, it's {your first name}").
+- KV `list()` eventual consistency confirmed during the E2E: a fresh `put()` is not visible from `list()` for up to ~60 seconds, but a direct `get(key)` returns the new entry immediately. The `/queue/<key>` endpoint uses direct `get()` so it bypasses the cache. `lofty_api.list_pending_showings` uses `list()` and accepts the lag.
+
+### Notes
+- Tier 3 deploys do NOT touch Tier 2. The two Workers are independent: separate names (`jotform-to-lofty` vs `showing-sms`), separate wrangler configs, separate KV namespace versus D1 database, separate URLs. They share only the `LOFTY_API_KEY` secret which is pushed once per Worker.
+- The Lofty SMS endpoint requires a virtual phone number on the deploying account's Lofty plan. Without one, the DO alarm fires but Lofty's `POST /v1.0/message/sms/send` returns an error and the KV row records `status: "error"` with the Lofty error message. Documented in the Tier 3 common-errors section of `references/workers_setup.md`.
+- Locked decision #10 (Workers Paid is ONLY for Tier 3 SMS) is now enforced in code: the Tier 3 picker probes for paid before deploy, every other Worker stays on the free tier. Locked decision #9 (tiered rollout, not "all four Workers in v1.5") is now substantially closed: Tier 2 shipped in v1.5/v1.6, Tier 3 ships in v1.7. Tier 3 polish (leads-index and short-links) remains opt-in for v1.7.x or later.
+
+---
+
 ## [1.6.3] - 2026-05-11
 
 Single-file housekeeping patch. Removes the only leftover scratch stub flagged in the v1.6.2 deferred list. No code changes. No Worker changes. No schema changes. The skill triggers and Worker behavior are byte-identical to v1.6.2. Existing installs do not need to redeploy. The v1.6.2 git tag, which had been documented as shipped but was never actually created on origin, was also created retroactively on commit 21ffa14 as part of this pass.

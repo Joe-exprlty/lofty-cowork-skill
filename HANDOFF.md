@@ -8,9 +8,9 @@ This file gets a new Claude Cowork session up to speed on the **Phase 2** build 
 
 > Joe opened a new prompt and typed "Read Handoff.md and continue conversation." Follow this section to pick up exactly where we left off. Do NOT recap the prior session's work back to Joe; he was there. Get to the point.
 
-**Where we left off (May 11, 2026):** v1.6.3 is shipped locally (commit + tag on the local main branch, NOT YET PUSHED to origin as of this session). It is a one-file housekeeping patch that removes the leftover `_tmp_worker_test.mjs` scratch stub. Zero code changes. Zero Worker changes. Zero schema changes. The skill triggers and Worker behavior are byte-identical to v1.6.2. Also created retroactively in the same session: the `v1.6.2` git tag on commit 21ffa14 (the actual v1.6.2 release commit). v1.6.2 had been documented as tagged in HANDOFF but the tag itself was never made. Both `v1.6.2` and `v1.6.3` tags are local-only until the next push.
+**Where we left off (May 11, 2026):** v1.7.0 is shipped locally (commit + tag on the local main branch, NOT YET PUSHED to origin as of this session). Tier 3 ships: the `showing-sms` Worker with per-showing Durable Object alarms, the templated wrangler config, the 36-assertion Layer 1 unit test suite, the Tier 3 setup section in `references/workers_setup.md`, and the Tier 3 picker in `SKILL.md`. Layer 3 E2E pass completed against Joe's production Cloudflare account using `showing-sms-staging` as a separate Worker name; 633ms send precision end-to-end; SMS landed on Joe's real phone at the correct time. The staging Worker and KV namespace were torn down after the E2E.
 
-Three of the four deferred pre-release items from v1.6.2 were intentionally left in place per Joe's call: `HANDOFF.md` stays in the public repo, `lofty-api-guide.md` stays at the repo root, and `RESEARCH_NOTES_2026-05-07.md` stays at the repo root. The fourth item (the `__pycache__/` local-only `.pyc`) was deleted from disk in the same pass. The skill repo is now ready for the first outside install, contingent on Joe pushing the v1.6.3 commit and both tags from GitHub Desktop or his terminal.
+Earlier in the same session: v1.6.3 was shipped (housekeeping patch, deleted the leftover `_tmp_worker_test.mjs` stub) and the v1.6.2 tag was retroactively created. v1.6.3 commit and v1.6.2/v1.6.3 tags have been pushed to origin. Three deferred items from the v1.6.2 list remain intentionally in place per Joe's call: `HANDOFF.md`, `lofty-api-guide.md`, and `RESEARCH_NOTES_2026-05-07.md`.
 
 Before v1.6.3 (still relevant context): v1.6.2 was a pure pre-public-release doc cleanup pass on top of v1.6.1. Pure doc drift fixes: broken file pointers in `CLAUDE.md.template`, "Tier 3 v1.6" stragglers in `SKILL.md` corrected to v1.7, Lofty API key path made consistent across `env-template`, `full-guide.md`, and the public `docs/index.html` GitHub Pages page, stale "starter does NOT include showing helpers" wording in `workflows.md`, five em-dashes scrubbed out of `workers_setup.md` per the brand rule, `README.md` repo-structure tree rewritten to reflect actual v1.6.1+ contents, and the `wrangler.jotform.toml` JOTFORM_FIELD_MAP comment block reframed to lead with the new working default. Existing v1.6.1 installs continue running without redeploy.
 
@@ -31,11 +31,39 @@ The Tier 3 SMS Worker port from `saling-automation/worker/showing_sms_worker.js`
 
 **Then, as your FIRST user-facing message, ask Joe what to work on next:**
 
-> v1.6.3 is shipped (housekeeping patch, May 11). The pre-release loose ends are now closed. Two viable next directions: (1) Tier 3 SMS Worker port (v1.7, headline functional item, Workers Paid plan required). (2) Stage C (schedule-showing orchestration sub-skill, smaller scope). Which way?
+> v1.7.0 is shipped (Tier 3 SMS Worker, May 11). Layer 3 E2E pass clean (633ms precision, real SMS delivered). Three viable next directions: (1) Stage C, the schedule-showing orchestration sub-skill ported from saling-automation. (2) Tier 3 polish (leads-index Worker, short-links Worker; both opt-in, free tier). (3) First public install push (announce on GitHub Pages page, package the .skill, get the 25-minute realtor talk on the calendar). Which way?
 
 If the MCP state check shows test accounts still connected, lead with: "Quick heads up before we start: your Cloudflare and Jotform MCPs are still on the test accounts from the v1.6.1 E2E session. Want to swap them back to your production accounts first?"
 
 Use AskUserQuestion with options like "Push into Tier 3 SMS Worker (v1.7)," "Push into Stage C (schedule-showing sub-skill)," "Swap MCPs back to production accounts," or "Other."
+
+---
+
+## v1.7.0 SHIPPED (2026-05-11)
+
+Tag `v1.7.0` on local main, NOT YET PUSHED to origin as of this session. Tier 3 ships. What landed:
+
+- **`lofty-cowork-helper/workers/showing_sms_worker.js`** ported from the saling-automation production code. Joe-specifics stripped: hardcoded "Joe" in the SMS body now parameterized as `OWNER_FIRST_NAME` env var. Module-scope helpers refactored from inline blocks for test-lifting. DO alarm semantics, KV index shape, HTTP route surface byte-identical to production.
+- **`lofty-cowork-helper/workers/wrangler.showing-sms.toml`** templated config. `workers_dev=true`, `preview_urls=false`. KV id placeholder. Append-only `[[migrations]]` block auto-creates the `ShowingTimer` Durable Object class on first deploy.
+- **`lofty-cowork-helper/scripts/test_showing_sms_worker.mjs`** Layer 1 unit tests. 36 assertions covering auth, KV key shape, request validation, queue entry build, SMS body format. All passing.
+- **`references/workers_setup.md`** Tier 3 setup section. ~180 lines parallel to Tier 2's structure. Includes a Step 0 in Easy Mode walkthrough that spells out how to open a terminal for non-developer users (Spotlight on macOS, Start menu on Windows).
+- **`SKILL.md`** Tier 3 picker. Trigger phrases include "set up Tier 3," "deploy the SMS Worker," etc. Workers Paid prereq probe before routing to Easy or Power User Mode.
+- **`CHANGELOG.md`** v1.7.0 entry.
+- **`.gitignore`** adds `.test-v1.7/` and `.wrangler/`.
+
+**Layer 3 E2E results (the v1.7.0 release gate):**
+
+Deployed `showing-sms-staging` to Joe's production Cloudflare account as a separate Worker name. Created `SHOWING_SMS_QUEUE_STAGING` KV namespace. Pushed `LOFTY_API_KEY` secret. Enqueued a 90-second-out showing against Joe's own lead (`1142635515796067`).
+
+Result: DO alarm fired at `sent_at: 2026-05-11T20:11:32.633Z` versus `send_at: 2026-05-11T20:11:32Z`. **633ms end-to-end precision.** Lofty accepted the SMS for delivery (`messageId: 223094189` for `phoneNumber: 5039107364`). SMS landed on Joe's real phone at 13:11 Pacific. KV audit row flipped from `pending` to `sent` with `sent_at`, `sent_to_phone`, and `sent_message` populated. `OWNER_FIRST_NAME="Joe"` flowed through the alarm() handler correctly.
+
+Both staging artifacts (Worker `showing-sms-staging`, KV namespace `eb1f068d14af4e8789c498cbfddd3b3c`) torn down via `npx wrangler delete` and `npx wrangler kv namespace delete`. Joe's production `showing-sms` Worker untouched throughout.
+
+**Saved feedback memory (2026-05-11):** Easy Mode walkthroughs for the lofty-cowork-skill must include explicit terminal-open instructions before any CLI step. Real estate agents often have never opened a terminal. Tier 3 walkthrough already has the Step 0. Tier 2 walkthrough does NOT yet; revisit at a future cleanup pass.
+
+**Push status (as of this session):** Local tag `v1.7.0` and the v1.7.0 commit have NOT YET been pushed to origin. The next push must include the commit and the tag (`git push origin main` + `git push origin v1.7.0`, or in GitHub Desktop: Push to origin, then a separate tag-push step from the terminal).
+
+**Smoke tests:** Both `node lofty-cowork-helper/scripts/test_worker_parsers.mjs` and `node lofty-cowork-helper/scripts/test_showing_sms_worker.mjs` pass at v1.7.0 HEAD.
 
 ---
 
@@ -162,10 +190,11 @@ Recommend (1) first since Tier 3 is the biggest functional jump remaining for th
 
 ---
 
-## Status snapshot (May 11, 2026)
+## Status snapshot (May 11, 2026 evening)
 
-- **v1.6.3 SHIPPED.** Tag on local main, push to origin pending. Single-file housekeeping patch removing the leftover `_tmp_worker_test.mjs` stub. Also retroactively created the `v1.6.2` tag on commit 21ffa14 (the release commit) since HANDOFF had claimed it was tagged but it never was. Both tags local-only until pushed.
-- **v1.6.2 SHIPPED.** Tag now on local main (retroactively created in the v1.6.3 session), push pending. Pre-public-release doc cleanup pass. Pure doc edits, zero code or schema changes. Broken file pointers in `CLAUDE.md.template` fixed, "Tier 3 v1.6" stragglers in `SKILL.md` corrected to v1.7, Lofty API key path made consistent across `env-template`, `full-guide.md`, and the public `docs/index.html` page, stale "starter does NOT include showing helpers" wording in `workflows.md` rewritten, five em-dashes scrubbed from `workers_setup.md`, `README.md` repo-structure tree rewritten to reflect actual v1.6.1+ contents, `wrangler.jotform.toml` JOTFORM_FIELD_MAP comment reframed.
+- **v1.7.0 SHIPPED.** Tag on local main, push to origin pending. Tier 3 SMS Worker (`showing-sms`) with per-showing Durable Object alarms. Layer 3 E2E pass clean (633ms end-to-end precision, real SMS delivered to maintainer's phone). Adds ~620 lines across Worker, wrangler config, unit tests, Tier 3 walkthrough, and SKILL.md picker. Requires Cloudflare Workers Paid plan for installs.
+- **v1.6.3 SHIPPED.** Tag pushed to origin. Single-file housekeeping patch removing the leftover `_tmp_worker_test.mjs` stub. Retroactively created the `v1.6.2` tag in the same session.
+- **v1.6.2 SHIPPED.** Tag pushed to origin. Pre-public-release doc cleanup pass. Pure doc edits, zero code or schema changes. Broken file pointers in `CLAUDE.md.template` fixed, "Tier 3 v1.6" stragglers in `SKILL.md` corrected to v1.7, Lofty API key path made consistent across `env-template`, `full-guide.md`, and the public `docs/index.html` page, stale "starter does NOT include showing helpers" wording in `workflows.md` rewritten, five em-dashes scrubbed from `workers_setup.md`, `README.md` repo-structure tree rewritten to reflect actual v1.6.1+ contents, `wrangler.jotform.toml` JOTFORM_FIELD_MAP comment reframed.
 - **v1.6.1 SHIPPED.** Tag on origin/main. Patch release fixing the first-time-user papercuts that v1.6 Easy Mode E2E testing surfaced. Canonical `JOTFORM_FIELD_MAP` default in toml; `workers_dev`/`preview_urls` pinned; doc rewrites covering MCP install, Lofty API token path, Cloudflare token dropdown gotchas, Jotform UI path updates, wrangler interactive prompts, SSL cert delay, and webhook UI path. Verified end-to-end against brand new accounts.
 - **v1.6.0 SHIPPED.** Template-clone path live. Public template form `261294238566162` published in Joe's Jotform account with Prevent Cloning OFF.
 - Phase 2 Stage A is COMPLETE through v1.4.1. Showing primitives, leads index, post-showing question pack, full read coverage of the API surface, Content-Type bug fix, find_client fallback for unsynced contacts.
@@ -242,7 +271,9 @@ Decided across the May 7 and two May 8 design sessions. Do not revisit without s
 ## Stage status
 
 ### Stage A: COMPLETE through v1.4.1.
-### Stage B v1.6.3: COMPLETE (shipped 2026-05-11 as v1.6.3, push pending). Housekeeping patch closing out the v1.6.2 deferred list. `_tmp_worker_test.mjs` deleted. `__pycache__/.pyc` removed from disk. `v1.6.2` tag retroactively created on commit 21ffa14. Three deferred items (HANDOFF.md, lofty-api-guide.md, RESEARCH_NOTES_2026-05-07.md) intentionally kept in place per Joe's call.
+### Stage B v1.7.0: COMPLETE (shipped 2026-05-11 as v1.7.0, push pending). Tier 3 SMS Worker (`showing-sms`) with per-showing Durable Object alarms. Layer 3 E2E pass clean. The headline functional jump for the public kit is now closed; Tier 3 polish (leads-index, short-links) is opt-in for v1.7.x or later.
+
+### Stage B v1.6.3: COMPLETE (shipped 2026-05-11 as v1.6.3, pushed to origin). Housekeeping patch closing out the v1.6.2 deferred list. `_tmp_worker_test.mjs` deleted. `__pycache__/.pyc` removed from disk. `v1.6.2` tag retroactively created on commit 21ffa14. Three deferred items (HANDOFF.md, lofty-api-guide.md, RESEARCH_NOTES_2026-05-07.md) intentionally kept in place per Joe's call.
 
 ### Stage B v1.6.2: COMPLETE (shipped 2026-05-10 evening as v1.6.2). Pre-public-release doc cleanup pass. Pure doc edits, zero code or schema changes.
 

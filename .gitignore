@@ -37,3 +37,9 @@ data/leads_index.json
 
 # Local E2E test scratch (v1.6 import-flow validation; not part of the kit)
 .test-v1.6/
+
+# Local E2E test scratch (v1.7 Tier 3 Layer 3 validation; not part of the kit)
+.test-v1.7/
+
+# Wrangler local cache (created when wrangler is invoked from the repo root)
+.wrangler/

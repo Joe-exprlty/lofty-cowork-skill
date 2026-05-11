@@ -314,6 +314,191 @@ When a buyer submits the form, the data passes through:
 
 Confirm this fits your brokerage's data handling rules and what your buyers reasonably expect before turning the form on for live clients. The kit is provided as is. Verify behavior in your own accounts before relying on it for client-facing work.
 
+---
+
+# Tier 3 setup: showing-reminder SMS Worker
+
+Tier 3 deploys a second Cloudflare Worker (`showing-sms`) that fires the post-showing feedback text at the exact moment a showing starts. It uses per-showing Durable Object alarms (no cron), so precision is "within seconds" rather than "within a minute" and idle wakeups are zero.
+
+This section is parallel to the Tier 2 section above. The pre-conditions, modes, and verify-and-rollback structure are the same; the deltas live below.
+
+## What changed in v1.7
+
+- New Worker `showing-sms` ported from a battle-tested production implementation. 162ms alarm precision validated in production at scale.
+- New wrangler config at `workers/wrangler.showing-sms.toml` with `workers_dev=true`, `preview_urls=false`, and an append-only `[[migrations]]` block that auto-creates the `ShowingTimer` Durable Object class on first deploy.
+- New unit test at `scripts/test_showing_sms_worker.mjs` covering auth, KV key shape, request validation, queue entry build, and SMS body format. 36 assertions, runs in plain Node.
+- New `OWNER_FIRST_NAME` env var so the SMS body says "Hi {client}, it's {your name}..." Defaults to "your agent" if unset.
+
+## What you get
+
+- `prepare_showing(lead_id=...)` in Python schedules a feedback SMS for the moment the showing starts. The Worker stores the entry in KV, creates a Durable Object instance, sets an alarm, and Cloudflare wakes the DO at send_at, no polling required.
+- `api.list_pending_showings(lead_id)` returns everything queued for a lead.
+- `api.cancel_showing(lead_id, full_address)` deletes the KV entry AND cancels the DO alarm so a cancelled tour does not still trigger the SMS.
+- Audit trail: KV entries flip from `pending` to `sent` with the message body, the phone the SMS went to, and a 30-day expiration.
+
+## Tier 3 prereqs
+
+Same as Tier 2 prereqs, plus three additions:
+
+1. **Cloudflare Workers Paid plan ($5/mo) enabled on the deploying account.** Durable Objects are not available on the free tier. Dashboard path: Workers & Pages → Plans → Workers Paid. The plan also bumps your daily Worker request limit from 100k to 10M.
+2. **Tier 2 deployed first.** Tier 3 reuses the same `LOFTY_API_KEY` secret already pushed to your Cloudflare account in Tier 2 step 7. If Tier 2 is not yet deployed, run that first.
+3. **A virtual phone number in Lofty.** Lofty's SMS endpoint requires you to have a virtual number on your account. Without one, `sendLoftySms` returns an error and the SMS never goes out. Confirm yours in Lofty under Settings → Numbers.
+
+## Tier 3 test pyramid (the three layers)
+
+Tier 3 ships with a three-layer test approach so you can validate the Worker without paying twice for a "staging" Cloudflare account.
+
+**Layer 1: unit tests.** `node scripts/test_showing_sms_worker.mjs` runs 36 assertions against the deterministic helpers (auth, KV key shape, request validation, queue entry build, SMS body format). Runs in plain Node, no Cloudflare account involved, zero dollars. Run this on every code change. Catches the bulk of port-induced bugs (typos, wrong env var names, broken JSON shapes).
+
+**Layer 2: `wrangler dev --local`.** From the `workers/` folder run `npx wrangler dev -c wrangler.showing-sms.toml --local`. Hits the HTTP routes (`/enqueue`, `/queue`, `/queue/<key>` GET and DELETE) with curl. Local dev simulates DO alarms but the timing is approximate, so this layer is "does the wiring work" not "does the alarm fire at the right second." Still free, no account needed.
+
+**Layer 3: deploy to your existing Workers Paid account with a separate Worker name.** If you already pay for Workers Paid (because you run a different DO Worker on that account), you can validate the SMS Worker end-to-end without paying twice. Change `name = "showing-sms"` to `name = "showing-sms-staging"` in `wrangler.showing-sms.toml`, deploy, run one real showing end-to-end against your own lead ID, then `npx wrangler delete -c wrangler.showing-sms.toml --name showing-sms-staging` to tear it down. The real production Worker is untouched.
+
+## Easy Mode walkthrough (Tier 3)
+
+This walkthrough is what Claude follows for you. Each step is a single chat exchange. Stop the moment something errors and read the "Common errors" section below.
+
+**Step 0: Open a terminal window.** A couple of these steps need a terminal (the black or white window with a cursor where you type commands). If you have never used one, here is how to find yours.
+
+- **macOS:** Press and hold the Command key, tap the Space bar to open Spotlight, type "Terminal," and press Enter. A small window with a blinking cursor appears. Leave it open; you will paste commands into it.
+- **Windows:** Click the Start button, type "PowerShell," and press Enter. A blue or black window with a blinking cursor appears.
+
+You only need one terminal window open at a time. When Claude tells you to "run" a command, it means: click into that window, paste the command Claude just gave you, and press Enter.
+
+1. **Confirm Workers Paid is enabled.** Claude calls the Cloudflare MCP to verify the account is on a paid plan. If not, Claude pauses and points you at the Workers & Pages → Plans page to upgrade.
+2. **Create the KV namespace.** Claude runs `npx wrangler kv namespace create SHOWING_SMS_QUEUE -c wrangler.showing-sms.toml` and pastes the returned id into the `[[kv_namespaces]]` block.
+3. **Set `OWNER_FIRST_NAME` in `wrangler.showing-sms.toml`.** Claude asks you for the first name you want in your SMS body and writes it into the `[vars]` block.
+4. **Push the `LOFTY_API_KEY` secret.** Tier 2 already pushed this for the `jotform-to-lofty` Worker. The `showing-sms` Worker needs its own copy on the same key.
+5. **Deploy.** `npx wrangler deploy -c wrangler.showing-sms.toml`. The first deploy auto-creates the `ShowingTimer` Durable Object class via the `[[migrations]]` block.
+6. **Health check.** `curl https://showing-sms.<your-subdomain>.workers.dev/` should return `{"status":"ok","service":"showing-sms","architecture":"durable-object-alarms"}`. Fresh subdomains take 5-15 minutes for the SSL certificate to propagate; curl returns exit code 35 during that window.
+7. **Smoke test.** Claude enqueues a test showing for your own lead ID, set 90 seconds in the future, and waits for the SMS to land on your phone. After it arrives, Claude cancels the entry and confirms the KV row reflects `sent`.
+8. **Wire `SHOWING_SMS_WORKER_URL` into `.env`.** So `prepare_showing` in `lofty_api.py` knows where to POST.
+9. **Done.** Tier 3 is live.
+
+## Power User Mode walkthrough (Tier 3)
+
+For users who want to run the commands themselves. Same 9 steps as Easy Mode, but you drive.
+
+### 0. Open a terminal
+
+If you do not already have one open: macOS users press Cmd+Space, type "Terminal," and press Enter. Windows users open PowerShell from the Start menu. Every shell snippet below runs in that window. Pasting a multi-line snippet runs each line in order; you do not need to type them one at a time.
+
+### 1. Confirm Workers Paid
+
+In the Cloudflare dashboard go to Workers & Pages → Plans. If the active plan is "Free," click Workers Paid and complete the $5/mo subscription. Without this, Durable Objects do not exist and deploys fail with "no such binding: SHOWING_DO."
+
+### 2. Create the KV namespace
+
+From `lofty-cowork-helper/workers/`:
+
+```
+npx wrangler kv namespace create SHOWING_SMS_QUEUE -c wrangler.showing-sms.toml
+```
+
+Copy the returned `id` into the `[[kv_namespaces]]` block of `wrangler.showing-sms.toml`, replacing `REPLACE_WITH_YOUR_SHOWING_SMS_QUEUE_KV_ID`.
+
+### 3. Set `OWNER_FIRST_NAME`
+
+Open `wrangler.showing-sms.toml` and update the `[vars]` block:
+
+```
+[vars]
+OWNER_FIRST_NAME = "Jane"
+```
+
+The default is `"your agent"`. Replace with your first name. This is what shows up in the SMS body ("Hi Jack, it's Jane. Quick feedback form for ...").
+
+### 4. Push the `LOFTY_API_KEY` secret
+
+```
+echo "$LOFTY_API_KEY" | npx wrangler secret put LOFTY_API_KEY -c wrangler.showing-sms.toml
+```
+
+Wrangler will prompt you to create the Worker if it does not exist. Confirm.
+
+### 5. Deploy
+
+```
+npx wrangler deploy -c wrangler.showing-sms.toml
+```
+
+The first deploy creates the `ShowingTimer` Durable Object class via the `[[migrations]]` block. Subsequent deploys reuse the existing class. Never edit the `[[migrations]]` block; only append new entries for future class changes.
+
+### 6. Health check
+
+```
+curl https://showing-sms.<your-subdomain>.workers.dev/
+```
+
+Expected:
+
+```json
+{"status":"ok","service":"showing-sms","architecture":"durable-object-alarms"}
+```
+
+If curl returns exit code 35, the SSL certificate is still propagating. Wait 5-15 minutes and retry.
+
+### 7. Smoke test
+
+Enqueue a test showing 90 seconds in the future against your own lead ID:
+
+```
+curl -X POST https://showing-sms.<your-subdomain>.workers.dev/enqueue \
+  -H "Authorization: Bearer $LOFTY_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "lead_id": <your_own_lead_id>,
+    "send_at": "<now+90s as ISO 8601>",
+    "short_url": "https://example.com/test",
+    "property_short_address": "Tier 3 smoke test"
+  }'
+```
+
+After 90 seconds, your phone should buzz with the SMS. Check the KV entry to confirm the audit trail:
+
+```
+curl https://showing-sms.<your-subdomain>.workers.dev/queue?lead_id=<your_own_lead_id> \
+  -H "Authorization: Bearer $LOFTY_API_KEY"
+```
+
+The status should be `"sent"` with `sent_at`, `sent_to_phone`, and `sent_message` populated.
+
+### 8. Wire `.env`
+
+Add to `.env` at the repo root:
+
+```
+SHOWING_SMS_WORKER_URL=https://showing-sms.<your-subdomain>.workers.dev
+```
+
+`lofty_api.py`'s `prepare_showing`, `list_pending_showings`, and `cancel_showing` read this var.
+
+### 9. Done
+
+Tier 3 is live. The next showing scheduled through `prepare_showing` will trigger an SMS at the showing's start time.
+
+## Verify and troubleshoot (Tier 3)
+
+### Common errors (Tier 3 specific)
+
+- **`no such binding: SHOWING_DO`** at deploy time. Workers Paid is not enabled on the account, OR the `[[migrations]]` block is missing from `wrangler.showing-sms.toml`. Confirm both.
+- **`durable_objects.bindings: subrequest needed`** when calling `/enqueue`. Sometimes happens on the very first request after a fresh deploy because the DO class is still warming up. Wait 30 seconds and retry; it self-resolves.
+- **SMS never arrives, KV status stays `pending`.** Check the Worker's tail log: `npx wrangler tail showing-sms -c wrangler.showing-sms.toml`. Most common cause is no virtual number on the Lofty account, which produces a Lofty 4xx error in the tail.
+- **SMS arrives but says "Hi there, it's your agent..."** `OWNER_FIRST_NAME` is unset or `firstName` on the lead is empty. Confirm the env var was set in step 3, redeploy, and verify the lead's first name in Lofty.
+- **Cron trigger still firing on the old deploy.** If you migrated from a cron-driven version of this Worker, the cron trigger in the dashboard does not auto-delete. Delete it manually: Workers & Pages → showing-sms → Triggers → Cron Triggers → Remove.
+
+### Roll back
+
+Same shape as the Tier 2 roll-back. From `workers/`:
+
+```
+npx wrangler delete -c wrangler.showing-sms.toml --name showing-sms
+```
+
+Then remove the KV namespace from the dashboard (Workers & Pages → KV → SHOWING_SMS_QUEUE → Delete). The `LOFTY_API_KEY` secret can stay; the Tier 2 Worker still uses it.
+
+---
+
 ## What comes next
 
 Tier 2 unlocks:
@@ -322,4 +507,10 @@ Tier 2 unlocks:
 - A "buyer profile" Cowork artifact you can ask Claude to render for any lead.
 - Pre-filled Google Calendar events for follow-up showings, prefilled with the buyer's top 3 must-haves and dealbreakers.
 
-Tier 3 (the showing-reminder SMS Worker) ships in v1.7 and requires the Cloudflare Workers Paid plan ($5/mo). Tier 3 polish (the leads-index and short-links Workers) is opt-in and ships in v1.7.x or later.
+Tier 3 unlocks:
+
+- `prepare_showing(lead_id=...)` from Python schedules the post-showing SMS at exact precision.
+- `api.list_pending_showings(lead_id)` and `api.cancel_showing(lead_id, full_address)` for queue management.
+- The full per-showing audit trail in `SHOWING_SMS_QUEUE` KV with 30-day retention.
+
+Tier 3 polish (the leads-index and short-links Workers) is opt-in and ships in v1.7.x or later.

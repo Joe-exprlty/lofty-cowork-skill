@@ -1,6 +1,6 @@
 ---
 name: lofty-cowork-helper
-description: Connect Claude to the Lofty CRM API for real estate agents and VAs. Use whenever the user mentions Lofty, Lofty CRM, Lofty API, connecting Cowork to Lofty, finding a lead, logging a note, scheduling a showing, post-showing SMS, leads index, jotform feedback, error 200058, or Lofty webhooks. Trigger on setup phrases ("set up Lofty," "connect my CRM," "I just installed this"), on Tier 2 deploy phrases ("set up Tier 2," "set up post-showing feedback," "deploy the Worker," "deploy the post-showing feedback Worker," "set up the JotForm Worker," "wire up the showing feedback form"), on workflow questions ("how do I find a lead," "log a showing," "log a note for," "search the MLS," "schedule a showing for"), and on troubleshooting phrases ("Lofty error," "200058," "auth failed," "this Lofty call returned"). Trigger even on casual mentions ("the Lofty thing," "my CRM is Lofty," "in Lofty"). Do NOT trigger for general real estate questions unrelated to Lofty.
+description: Connect Claude to the Lofty CRM API for real estate agents and VAs. Use whenever the user mentions Lofty, Lofty CRM, Lofty API, connecting Cowork to Lofty, finding a lead, logging a note, scheduling a showing, post-showing SMS, leads index, jotform feedback, error 200058, or Lofty webhooks. Trigger on setup phrases ("set up Lofty," "connect my CRM," "I just installed this"), on Tier 2 deploy phrases ("set up Tier 2," "set up post-showing feedback," "deploy the Worker," "deploy the post-showing feedback Worker," "set up the JotForm Worker," "wire up the showing feedback form"), on Tier 3 deploy phrases ("set up Tier 3," "deploy the SMS Worker," "set up showing reminders," "set up post-showing SMS," "wire up the showing-sms Worker"), on workflow questions ("how do I find a lead," "log a showing," "log a note for," "search the MLS," "schedule a showing for"), and on troubleshooting phrases ("Lofty error," "200058," "auth failed," "this Lofty call returned"). Trigger even on casual mentions ("the Lofty thing," "my CRM is Lofty," "in Lofty"). Do NOT trigger for general real estate questions unrelated to Lofty.
 ---
 
 # Lofty CRM Helper for Claude Cowork
@@ -15,6 +15,7 @@ When the skill activates, decide which path the user is on:
 - **`.env` exists but no successful test connection yet** → finish setup. Run the connection test, report result.
 - **A specific Lofty task in mind** ("find a lead," "log a note," "schedule a showing") → use the "Common workflows" section, which points at `references/workflows.md` for full recipes.
 - **A Tier 2 deploy in mind** ("set up Tier 2," "deploy the Worker," "set up post-showing feedback") → jump to "Tier 2 setup: post-showing feedback Worker" below.
+- **A Tier 3 deploy in mind** ("set up Tier 3," "deploy the SMS Worker," "set up showing reminders") → jump to "Tier 3 setup: showing-reminder SMS Worker" below.
 - **An error or unexpected behavior** → use "When something behaves unexpectedly" below, which points at `references/quirks.md` and the troubleshooting decision tree in `references/full-guide.md`.
 
 If the user mentions Lofty in passing without a clear task, ask one short clarifying question: "Are you setting up Lofty for the first time, or is there a specific task you want help with?"
@@ -234,6 +235,60 @@ If neither MCP is connected and the user does not want to install them, default 
 
 ---
 
+## Tier 3 setup: showing-reminder SMS Worker
+
+Trigger this section when the user says any of:
+
+- "set up Tier 3"
+- "deploy the SMS Worker"
+- "set up showing reminders"
+- "set up post-showing SMS"
+- "wire up the showing-sms Worker"
+- any close paraphrase referencing Tier 3, the SMS reminder Worker, or the Durable Object alarm scheduler
+
+Tier 3 stands up one Cloudflare Worker (`showing-sms`), one KV namespace (`SHOWING_SMS_QUEUE`), and a Durable Object class (`ShowingTimer`) that fires the post-showing feedback text at the exact moment a showing starts. **Cloudflare Workers Paid plan is required ($5/mo)** because Durable Objects are not on the free tier. The full deploy runbook lives in the "Tier 3 setup" section of `references/workers_setup.md`. This section just routes the user to the right walkthrough in that file.
+
+### Step 1: Confirm prereqs (silent)
+
+Before picking a mode, check:
+
+- Tier 2 is already deployed. Tier 3 reuses the same `LOFTY_API_KEY` secret and the same Cloudflare account. If Tier 2 is not done, route them to "Tier 2 setup" above first.
+- **Cloudflare Workers Paid plan is enabled on the deploying account.** This is the new prereq vs Tier 2. Probe by listing the user's workers with the Cloudflare MCP; if any Durable Object Worker is already deployed on the account, you can assume paid. Otherwise, ask the user to confirm at `dash.cloudflare.com` → Workers & Pages → Plans. Do NOT skip this check. Without paid, the first deploy fails with "no such binding: SHOWING_DO" and the user is left with a half-created Worker.
+- `.env` has `LOFTY_API_KEY` (Tier 1 finished).
+- `.env` has `CLOUDFLARE_API_TOKEN` (Tier 2 finished).
+- `node --version` and `npx wrangler --version` both return versions. If wrangler is not installed globally, `npx wrangler` works without a global install.
+- Cloudflare MCP connected. Easy Mode uses it to verify the paid plan and list existing Workers.
+- The user's Lofty account has a virtual phone number. Without one, Lofty's SMS endpoint returns an error and the SMS never goes out. Confirm at Lofty Settings → Numbers.
+
+### Step 2: Ask which mode
+
+Use the AskUserQuestion tool. Two options:
+
+- **Easy Mode (recommended).** Claude creates the KV namespace via Cloudflare MCP or wrangler, asks for `OWNER_FIRST_NAME`, fills `wrangler.showing-sms.toml`, pushes the `LOFTY_API_KEY` secret to the new Worker, deploys, runs a health check, runs a smoke test (enqueue against the user's own lead, 90 seconds in the future, wait for the SMS, cancel and verify the audit trail), and writes `SHOWING_SMS_WORKER_URL` into `.env`. About 8 minutes. The user sees the SMS land on their phone in real time.
+- **Power User Mode.** The user runs the shell commands themselves following the "Power User Mode walkthrough (Tier 3)" in `references/workers_setup.md`. About 15 minutes. Useful for users who want to see the wrangler interactive prompts firsthand or who do not have the Cloudflare MCP.
+
+If the Cloudflare MCP is not connected and the user does not want to install it, default to Power User Mode without asking.
+
+### Step 3: Run the chosen path
+
+- **Easy Mode:** follow steps 1 through 9 of the "Easy Mode walkthrough (Tier 3)" in `references/workers_setup.md` verbatim. The smoke test (step 7) is the canonical confirmation that everything works end-to-end. After step 9, hand off in one line: "Tier 3 is live. The next showing scheduled through `prepare_showing` will trigger an SMS at the showing's start time."
+- **Power User Mode:** point the user at the "Power User Mode walkthrough (Tier 3)" section of `references/workers_setup.md`. As they work through each numbered step, surface the relevant snippet, answer their questions inline, and read back any error output to diagnose. Don't run their commands for them.
+
+### When something fails
+
+1. Report the exact error in plain English.
+2. Match it against the "Common errors (Tier 3 specific)" table in `references/workers_setup.md`. The top three are: `no such binding: SHOWING_DO` (Workers Paid not enabled or `[[migrations]]` block missing), SMS never arrives with KV stuck on `pending` (usually no virtual number on Lofty), and SMS says "Hi there, it's your agent" (OWNER_FIRST_NAME unset).
+3. Offer to roll back the partial deploy using the "Roll back" section. ONLY roll back with explicit user consent.
+4. If after two attempts the same step still fails, stop and surface `github.com/Joe-exprlty/lofty-cowork-skill`.
+
+### After a successful deploy
+
+- Add `SHOWING_SMS_WORKER_URL=<deployed-url>` to `.env` so `prepare_showing`, `list_pending_showings`, and `cancel_showing` in `lofty_api.py` know where to POST.
+- Tell the user what they just unlocked: `prepare_showing(lead_id=...)` from Python now schedules the post-showing SMS at exact precision (within a few seconds of the showing start time), `api.list_pending_showings(lead_id)` lists what is queued, and `api.cancel_showing(lead_id, full_address)` cancels both the KV row and the DO alarm.
+- Tier 3 polish (the leads-index and short-links Workers) is opt-in and ships in v1.7.x or later. Don't bundle it with Tier 3 itself.
+
+---
+
 ## Common workflows
 
 For each workflow below, the full recipe (with edge cases) lives in `references/workflows.md`. Read that file before executing if you are unsure of any step.
@@ -300,7 +355,8 @@ The v1.2.0 starter covers leads, notes, activities, MLS search, tasks, email, an
 - Adding showing scheduling helpers (`prepare_showing`, `find_listing_by_address`)
 - Building a leads index for real name search across the full CRM
 - Deploying the post-showing feedback Worker (`jotform-to-lofty` + D1) - see "Tier 2 setup: post-showing feedback Worker" above for the full picker; `references/workers_setup.md` has the deploy walkthrough
-- Other Cloudflare Workers (leads-index, short-links, showing-sms) ship in v1.7 and later
+- Deploying the showing-reminder SMS Worker (`showing-sms`, Durable Object alarms) - see "Tier 3 setup: showing-reminder SMS Worker" above for the full picker; `references/workers_setup.md` Tier 3 section has the deploy walkthrough. Requires Cloudflare Workers Paid ($5/mo).
+- Other Cloudflare Workers (leads-index, short-links) ship in v1.7.x or later
 - Subscribing to webhooks for live updates
 
 Each addition has a pattern in the full guide. Use the same `_request` plumbing the starter client provides; do not reinvent it.
@@ -326,12 +382,15 @@ Each addition has a pattern in the full guide. Use the same `_request` plumbing 
 - `scripts/setup_check.py` - quick sanity check script for advanced users
 - `scripts/refresh_leads_index.py` - rebuild `data/leads_index.json` for the file-fallback lead lookup
 - `scripts/test_worker_parsers.mjs` - smoke test for the Tier 2 Worker's submission parser; run with `node scripts/test_worker_parsers.mjs`
+- `scripts/test_showing_sms_worker.mjs` - Layer 1 smoke test for the Tier 3 SMS Worker (36 assertions covering auth, KV key shape, request validation, queue entry build, SMS body format); run with `node scripts/test_showing_sms_worker.mjs`
 - `workers/jotform_to_lofty_worker.js` - the Tier 2 Worker source; deploys to Cloudflare via wrangler
 - `workers/wrangler.jotform.toml` - wrangler config template for the Tier 2 Worker (placeholders get filled in at deploy time)
+- `workers/showing_sms_worker.js` - the Tier 3 Worker source; per-showing Durable Object alarms; requires Workers Paid
+- `workers/wrangler.showing-sms.toml` - wrangler config template for the Tier 3 Worker (KV id and OWNER_FIRST_NAME get filled in at deploy time)
 - `workers/migrations/001_showing_feedback.sql` - D1 schema for the `showing_feedback` table; idempotent
 - `references/full-guide.md` - comprehensive setup, learning, and best practices guide
 - `references/quirks.md` - full quirks list with workarounds
 - `references/workflows.md` - step-by-step recipes for common tasks
 - `references/extending.md` - how to add capability beyond the starter
 - `references/calendar_routing.md` - which calendar provider to call based on the agent's setup choice
-- `references/workers_setup.md` - Tier 2 deploy runbook with Easy Mode and Power User Mode walkthroughs
+- `references/workers_setup.md` - Tier 2 + Tier 3 deploy runbook with Easy Mode and Power User Mode walkthroughs for both tiers

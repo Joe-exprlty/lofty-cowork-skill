@@ -1,0 +1,67 @@
+# Wrangler config for the showing-sms Worker (Tier 3).
+# ----------------------------------------------------
+# Deploys the Tier 3 SMS scheduler that fires the post-showing feedback
+# text at the exact moment a showing starts. The Worker uses per-showing
+# Durable Object alarms (no cron), so Cloudflare Workers Paid is REQUIRED
+# ($5/mo). Durable Objects are not available on the free tier.
+#
+# To deploy from this folder (lofty-cowork-helper/workers/):
+#   1. Confirm your Cloudflare account has Workers Paid enabled.
+#      Dashboard: Workers & Pages -> Plans -> Workers Paid ($5/mo).
+#   2. Set CLOUDFLARE_API_TOKEN in your shell or .env at the repo root.
+#   3. Create the KV namespace (one-time):
+#        npx wrangler kv namespace create SHOWING_SMS_QUEUE
+#      Copy the returned id into the [[kv_namespaces]] block below.
+#   4. Push the Lofty API key as a secret (one-time):
+#        echo "$LOFTY_API_KEY" | npx wrangler secret put LOFTY_API_KEY \
+#          -c wrangler.showing-sms.toml
+#   5. Set OWNER_FIRST_NAME in the [vars] block below (the first name
+#      that appears in the SMS body; defaults to "your agent" if unset).
+#   6. Deploy:
+#        npx wrangler deploy -c wrangler.showing-sms.toml
+#      The first deploy auto-creates the ShowingTimer Durable Object class
+#      via the [[migrations]] block.
+#
+# Migrations are append-only and order-sensitive. The v1 entry below MUST
+# remain on the first deploy or env.SHOWING_DO is undefined and every
+# enqueue throws. Never edit an existing migration entry; only add new
+# ones for future class changes.
+
+name = "showing-sms"
+main = "showing_sms_worker.js"
+compatibility_date = "2026-04-22"
+
+# Silences wrangler 4.x default warnings and closes the preview-URLs
+# attack surface (publicly accessible Worker versions holding LOFTY_API_KEY).
+workers_dev = true
+preview_urls = false
+
+# OWNER_FIRST_NAME is the first name that appears in the SMS body, e.g.
+# "Hi {client_first_name}, it's {OWNER_FIRST_NAME}..." Replace with your
+# own first name before deploying. Defaults to "your agent" if unset.
+[vars]
+OWNER_FIRST_NAME = "your agent"
+
+# KV binding for the queue index (used by list_pending_showings).
+# Replace the id with the namespace you created in step 3 above.
+[[kv_namespaces]]
+binding = "QUEUE"
+id = "REPLACE_WITH_YOUR_SHOWING_SMS_QUEUE_KV_ID"
+
+# Durable Object binding. Each showing gets one ShowingTimer instance,
+# keyed by showing_key, with an alarm set for the showing's send_at time.
+[[durable_objects.bindings]]
+name = "SHOWING_DO"
+class_name = "ShowingTimer"
+
+# DO migrations are append-only and order-sensitive. The first deploy
+# MUST include this block or env.SHOWING_DO is undefined and every
+# enqueue throws. Never edit an existing migration; only add new ones.
+[[migrations]]
+tag = "v1"
+new_classes = ["ShowingTimer"]
+
+# NOTE: no [triggers] section. DO alarms replace the cron approach used
+# by older versions of this Worker. If you are migrating from a cron-
+# driven version, removing this section also removes the cron trigger
+# on next deploy.
