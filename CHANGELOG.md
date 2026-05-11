@@ -6,6 +6,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [1.8.0] - 2026-05-11
+
+Stage C ships. Adds the `schedule-showing` orchestration sub-skill, ported from a production implementation that has been driving the maintainer's multi-stop tours since April. Turns the kit from "all the primitives are here, ask Claude to wire them" into "describe what you want in one chat sentence and it happens." Triggers on phrases like "schedule a showing at," "book a tour for," "set up [client] at [address] at [time]," and the multi-stop pattern "schedule [client] at [addr1] at 4:30 then [addr2] at 5:00."
+
+No new infrastructure, no new dependencies. Every primitive the orchestration calls (`find_client`, `find_listing_by_address`, `prepare_showing`, `create_note`, `list_pending_showings`) was already in the v1.3.0+ starter; Stage C is the orchestration layer that sits on top.
+
+### Added
+- `lofty-cowork-helper/skills/schedule-showing/SKILL.md`. The orchestration sub-skill itself. Ported from the maintainer's `saling-automation/.claude/skills/schedule-showing/SKILL.md`. All owner-specifics stripped: name, email, phone, virtual signature, brokerage, timezone, and the production short-links domain all replaced with references to the workspace `CLAUDE.md` placeholders (`<your-email>`, `<your-phone>`, `<your-timezone>`, etc.). Example client and address strings (Tuhin, the Smiths, the SW Buckhorn / SW Yarra tour) replaced with generic placeholders. The 8-step workflow (resolve client, convert times, prepare each stop, confirm calendar handling, create events in parallel, post showing-log notes, verify SMS queue, report) is preserved end to end. Idempotency notes, common-failure tree, full `prepare_showing` return shape, and safety rules all carried over.
+
+### Changed
+- `SKILL.md` top-level description. Adds showing-orchestration trigger phrases ("schedule a showing," "book a showing," "set up a tour," "tour [address] tomorrow," "schedule [client] at [address]") to the trigger list so the skill activates on those phrases directly.
+- `SKILL.md` "How to start a session" routing block. Adds a new case that routes orchestration triggers to the `skills/schedule-showing/` sub-skill, parallel to the existing Tier 2 and Tier 3 picker routes. Notes the calendar backend prereq and the Tier 3 SMS Worker being optional.
+- `SKILL.md` file map. Adds `skills/schedule-showing/SKILL.md` with a one-line description of what it does.
+- `references/workflows.md` "Schedule a showing (full flow)" section. Adds a lead-in pointer to the new sub-skill as the fastest path for the typical case. The existing primitive-by-primitive manual recipe is kept as the fallback, framed as the "manual fallback for debugging a partial run."
+- `references/extending.md` "Showing scheduling" section. Adds a one-paragraph pointer to the orchestration sub-skill at the top of the section, with the existing primitive composition notes preserved below for users who want to compose the helpers themselves.
+
+### Validated
+- Layer 1 read-through review: side-by-side compare of the public-kit sub-skill against the saling-automation source confirmed zero owner-specifics leaked through and the 8-step workflow is intact. Em-dash audit clean (0 matches). Joe-specifics audit clean (0 matches for "joe", "saling", "sellingpdxhomes", "503-910", "exp realty", "tuhin", "buckhorn", "yarra", "joe-2c5").
+- Layer 2 dry-run chat test: confirmed the orchestration triggers correctly on a fresh Cowork session with a v1.8.0-candidate skill installed.
+- Layer 3 E2E: one real showing scheduled end to end against the maintainer's own lead using the v1.7.0 Tier 3 Worker. Calendar invite landed, Lofty note was written with the calendar event ID appended, and the post-showing SMS was queued correctly.
+
+### Notes
+- Locked decision #1 (public skill = pure template) is now enforced for the orchestration layer too. Every owner-specific reference is read from the workspace `CLAUDE.md` at run time; nothing is hardcoded in the sub-skill prose.
+- The orchestration runs on whichever calendar provider the agent selected at install time (`CALENDAR_PROVIDER` in `CLAUDE.md`). Step 5 routes through `references/calendar_routing.md`, so Google, Outlook, Lofty's calendar, and `skip` (buyer-only .ics) all work without any change to the sub-skill itself.
+- The Tier 3 SMS Worker is optional. If `SHOWING_SMS_WORKER_URL` is unset in `.env`, Step 3 still works but the SMS queue side-effect is a no-op, and Step 7 (verify queue) is skipped. The orchestration is fully usable for agents on the free Cloudflare tier.
+
+---
+
 ## [1.7.0] - 2026-05-11
 
 Tier 3 ships. Adds the showing-reminder SMS Worker (`showing-sms`), a second Cloudflare Worker that fires the post-showing feedback text at the exact moment a showing starts. Uses per-showing Durable Object alarms (no cron, no polling, no idle wakeups). Validated end-to-end against the maintainer's production Cloudflare account using a separate Worker name (`showing-sms-staging`) so no second paid plan was needed. SMS landed on a real phone at 633ms precision relative to send_at.

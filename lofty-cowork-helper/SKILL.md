@@ -1,6 +1,6 @@
 ---
 name: lofty-cowork-helper
-description: Connect Claude to the Lofty CRM API for real estate agents and VAs. Use whenever the user mentions Lofty, Lofty CRM, Lofty API, connecting Cowork to Lofty, finding a lead, logging a note, scheduling a showing, post-showing SMS, leads index, jotform feedback, error 200058, or Lofty webhooks. Trigger on setup phrases ("set up Lofty," "connect my CRM," "I just installed this"), on Tier 2 deploy phrases ("set up Tier 2," "set up post-showing feedback," "deploy the Worker," "deploy the post-showing feedback Worker," "set up the JotForm Worker," "wire up the showing feedback form"), on Tier 3 deploy phrases ("set up Tier 3," "deploy the SMS Worker," "set up showing reminders," "set up post-showing SMS," "wire up the showing-sms Worker"), on workflow questions ("how do I find a lead," "log a showing," "log a note for," "search the MLS," "schedule a showing for"), and on troubleshooting phrases ("Lofty error," "200058," "auth failed," "this Lofty call returned"). Trigger even on casual mentions ("the Lofty thing," "my CRM is Lofty," "in Lofty"). Do NOT trigger for general real estate questions unrelated to Lofty.
+description: Connect Claude to the Lofty CRM API for real estate agents and VAs. Use whenever the user mentions Lofty, Lofty CRM, Lofty API, connecting Cowork to Lofty, finding a lead, logging a note, scheduling a showing, post-showing SMS, leads index, jotform feedback, error 200058, or Lofty webhooks. Trigger on setup phrases ("set up Lofty," "connect my CRM," "I just installed this"), on Tier 2 deploy phrases ("set up Tier 2," "set up post-showing feedback," "deploy the Worker," "deploy the post-showing feedback Worker," "set up the JotForm Worker," "wire up the showing feedback form"), on Tier 3 deploy phrases ("set up Tier 3," "deploy the SMS Worker," "set up showing reminders," "set up post-showing SMS," "wire up the showing-sms Worker"), on showing orchestration phrases ("schedule a showing," "book a showing," "set up a tour," "tour [address] tomorrow," "schedule [client] at [address]"), on workflow questions ("how do I find a lead," "log a showing," "log a note for," "search the MLS," "schedule a showing for"), and on troubleshooting phrases ("Lofty error," "200058," "auth failed," "this Lofty call returned"). Trigger even on casual mentions ("the Lofty thing," "my CRM is Lofty," "in Lofty"). Do NOT trigger for general real estate questions unrelated to Lofty.
 ---
 
 # Lofty CRM Helper for Claude Cowork
@@ -16,6 +16,7 @@ When the skill activates, decide which path the user is on:
 - **A specific Lofty task in mind** ("find a lead," "log a note," "schedule a showing") → use the "Common workflows" section, which points at `references/workflows.md` for full recipes.
 - **A Tier 2 deploy in mind** ("set up Tier 2," "deploy the Worker," "set up post-showing feedback") → jump to "Tier 2 setup: post-showing feedback Worker" below.
 - **A Tier 3 deploy in mind** ("set up Tier 3," "deploy the SMS Worker," "set up showing reminders") → jump to "Tier 3 setup: showing-reminder SMS Worker" below.
+- **A showing to schedule end-to-end** ("schedule a showing," "book a tour," "set up [client] at [address] at [time]") → hand off to the `skills/schedule-showing/` sub-skill, which drives the multi-stop orchestration (resolve client, prepare each stop, calendar event, showing-log note, verify SMS queue). Requires `prepare_showing` helpers in the starter (v1.3.0+) and a calendar backend matching `CALENDAR_PROVIDER` in `CLAUDE.md`. The Tier 3 SMS Worker is optional; the orchestration works without it but skips Step 7.
 - **An error or unexpected behavior** → use "When something behaves unexpectedly" below, which points at `references/quirks.md` and the troubleshooting decision tree in `references/full-guide.md`.
 
 If the user mentions Lofty in passing without a clear task, ask one short clarifying question: "Are you setting up Lofty for the first time, or is there a specific task you want help with?"
@@ -373,6 +374,7 @@ Each addition has a pattern in the full guide. Use the same `_request` plumbing 
 ## File map
 
 - `SKILL.md` (this file) - what to do, when, in plain prose
+- `skills/schedule-showing/SKILL.md` - orchestration sub-skill that drives multi-stop showing scheduling end to end (resolve client, prepare each stop, create calendar events, post showing-log notes, verify SMS queue). Used whenever the user asks Claude to schedule, book, or set up a showing or tour.
 - `assets/lofty_api.py` - the starter Python client to install in the user's workspace
 - `assets/env-template` - settings file template
 - `assets/CLAUDE.md.template` - Cowork context file template (gets customized in step 7 of Easy Mode)

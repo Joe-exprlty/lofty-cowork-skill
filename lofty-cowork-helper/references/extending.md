@@ -112,7 +112,9 @@ Cost: free tier Workers + KV is plenty for typical real estate volume.
 
 ## Showing scheduling (built into the starter as of v1.3.0)
 
-Showings are the highest-leverage workflow. As of v1.3.0 the full helper ships with the starter. `prepare_showing` is a DRY-RUN: it builds payloads and queues the post-showing SMS, but it does NOT create the calendar event, post the Lofty note, or send the buyer email. The calling skill (or you, in your own code) is responsible for those side-effects, in this order:
+Showings are the highest-leverage workflow. The kit ships an orchestration sub-skill at `skills/schedule-showing/SKILL.md` that wires every step below together. Trigger phrases like "schedule a showing at," "book a tour for," or "set up [client] at [address] at [time]" route directly into it. The notes below are for users who want to compose the primitives themselves, or who are debugging a partial run.
+
+As of v1.3.0 the full helper ships with the starter. `prepare_showing` is a DRY-RUN: it builds payloads and queues the post-showing SMS, but it does NOT create the calendar event, post the Lofty note, or send the buyer email. The calling skill (or you, in your own code) is responsible for those side-effects, in this order:
 
 1. Call `prepare_showing(full_address, start_datetime_iso, client_name=...)` to assemble payloads.
 2. Create the calendar event yourself via your provider (Google Calendar MCP at v1; see `references/calendar_routing.md` for alternatives).

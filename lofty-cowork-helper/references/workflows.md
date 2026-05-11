@@ -63,6 +63,10 @@ Useful for: "what has Jane been looking at this week?" Tell the user the address
 
 ## Schedule a showing (full flow)
 
+The fastest path for the typical case (one or more confirmed showings for an existing Lofty client) is the `skills/schedule-showing/` sub-skill. It drives the whole flow end to end: resolve the client, prepare each stop, create calendar events in parallel, post showing-log notes with the calendar event ID appended, and verify the SMS queue landed. Trigger it with phrases like "schedule a showing at," "book a tour for," or "set up [client] at [address] at [time]." Use that sub-skill whenever you want one chat sentence to do the whole job.
+
+The recipe below is the primitive-by-primitive manual fallback. Use it when the sub-skill is unavailable, when you want to drive each step yourself, or when you are debugging a partial run.
+
 The starter client includes the showing helpers (`prepare_showing`, `find_listing_by_address`, `cancel_showing`) as of v1.3.0. No extension needed for the core flow. The `showing-sms` Cloudflare Worker (Tier 3, v1.7) is the only piece that requires additional setup; without it, `prepare_showing` still works but skips the post-showing SMS queue step.
 
 The canonical flow:
