@@ -70,6 +70,20 @@ These behaviors were observed during testing on one team's Lofty account in mid-
 
 29. **`/v1.0/leads` `page` parameter is silently ignored.** Confirmed live in May 2026. Calling `page=2` returns the same first 25 leads as `page=1`. The only working pagination is `scrollId` from the response's `_metadata`: pass that value back as a query param to get the next 25. Default sort appears to be newest-first (createTime DESC), which is what the v1.4.1 `find_client` fallback relies on. Quirk #2 covered keyword/sortField/startTime; #29 adds `page` to that list. The starter's `_search_recent_leads` helper handles scrollId pagination correctly.
 
+30. **`-1` is the "unset" sentinel for numeric fields on Lofty objects**, not null. Affects `leadSource` on manually created leads, `leadInquiry.priceMin/Max` and `bedroomsMin/Max`, and `leadPropertyList[].price`, `lotSize`, `floors`, `parkingSpace`. Code that filters with `if v is not None` will keep "unset" values; the right filter is `if v > 0`. Confirmed live May 2026.
+
+31. **`_metadata.total` is exposed on `/v1.0/leads`.** The wrapper is `{collection, limit, offset, total, scrollId}`, not just `scrollId`. `total` is the full count of leads matching the query, so a caller can get a count without paginating all the way through. Useful when you only need "how many leads do I have in stage X?" Confirmed live May 2026.
+
+32. **Activity `created` is epoch milliseconds, not an ISO string.** Activity rows from `/v1.0/leads/{id}/activities` have an integer `created` field in epoch ms. Convert with `datetime.fromtimestamp(v / 1000)`. Lead-level timestamps (`createTime`, `lastTouch`, `lastUpdateTime`, etc.) are strings in `YYYY-MM-DDThh:mm:ssGMT` format, not ISO 8601 with offset. Lofty mixes the two formats; pick the right parser per field.
+
+33. **`customRoleList[]` field is `role`, not `roleName`.** Every lead read returns the full role catalog (Buyer Agent, Showing Assistant, ISA, Transaction Coordinator, etc.) with `assigneeId=0` and `assignee=null` when nothing is assigned. To find actual role assignments, filter `[r for r in lead["customRoleList"] if r["assigneeId"] > 0]`. Confirmed live May 2026.
+
+34. **`/v1.0/calls` returns 404 without `leadId`.** Despite the OpenAPI docs description suggesting agent-wide call listing is supported, the endpoint requires a `?leadId=<id>` query param. With it, returns `{_metadata, calls}` using the same `scrollId` pagination as `/v1.0/leads`. Confirmed live May 2026.
+
+35. **`/v1.0/vendor/list` returns a bare list with no `_metadata`.** All vendors come back in one response. No pagination params observed. Different envelope shape from every other list endpoint in the API. Confirmed live May 2026.
+
+36. **`/v1.0/getPublishedListings` requires content negotiation.** Returns 406 "Not Acceptable" on a plain GET. The endpoint is an XML/RETS feed, so callers need to send `Accept: application/xml`. The starter client does not currently use this endpoint, but raw callers will hit the 406 without the right header.
+
 ---
 
 ## Webhook event types

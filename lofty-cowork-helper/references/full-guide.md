@@ -852,7 +852,9 @@ If you have access to the reference repo, the following docs go deeper than this
 - `docs/local-leads-index.md`: index build, refresh, staleness rules
 - `docs/phase2-feedback-db-deploy.md`: Jotform-to-Lofty Worker runbook
 
-If you are building from scratch, the official Lofty API docs at `https://api.lofty.com/docs/index.html` are partial but useful as a starting point. Expect to learn most of what you need by trial and error against the live API, which is exactly how the quirks list above came to be.
+For Lofty's response shapes (lead object, activity row, leadPropertyList, customRoleList, etc.), see `references/schema.md`. For endpoints Lofty documents but the starter doesn't wire up (set lead inquiry, add property, log off-Lofty communication, fire opportunity alerts, etc.), see `references/extending.md` section "Documented but not yet wired up."
+
+If you are building from scratch, the official Lofty API reference at `https://api.lofty.com/docs/reference` is the canonical source for endpoint shapes (the `/docs/index.html` page is just the auth intro). Expect to learn most of what you need by trial and error against the live API, which is exactly how the quirks list above came to be.
 
 ---
 

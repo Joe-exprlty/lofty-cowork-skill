@@ -350,6 +350,60 @@ If `eventCount` on a Worker stops ticking up over a day, the subscription has dr
 
 ---
 
+## Documented but not yet wired up
+
+Lofty publishes a full OpenAPI reference at `https://api.lofty.com/docs/reference`. The starter Python client implements the most-used endpoints; this section lists what Lofty documents but the starter doesn't wire up, so you don't have to re-discover them.
+
+Each entry is tagged with how it was probed against a real account in May 2026.
+
+### High value (writes that unlock new workflows)
+
+| Endpoint | Method | What it does |
+|---|---|---|
+| `/v1.0/leads/{leadId}/inquiry` | POST | Set a lead's saved-search criteria (price range, beds, locations, property type). Lofty's Auto Property Alerts feature auto-generates listing emails from this inquiry, so writing it once when a new buyer comes in eliminates the manual alert-setup step. |
+| `/v1.0/leads/{leadId}/property` | POST | Add a property to the lead's `leadPropertyList[]` with a label like `High Interest`, `Saved Listing`, `Requested Showing`. Useful for marking properties after a showing or pre-populating a tour route. |
+| `/v1.0/agent/send-notification` | POST | Fire an in-app Opportunity alert (with optional SMS + email) using a buyer-signal enum (browsed, favorited, saved search, requested showing, requested CMA, etc.). Not idempotent: repeated calls send repeated notifications. |
+| `/v1.0/agent/communication` | POST | Log a call, email, or text that happened OUTSIDE Lofty. Three channels: logCall, logEmail, logText. Direction is from the agent's POV: `outbound = agent → lead`, `inbound = lead → agent`. Better than a free-text note because it shows up in the right history tab. |
+
+### Situational (read endpoints worth knowing exist)
+
+| Endpoint | Method | Notes |
+|---|---|---|
+| `/v1.0/calls?leadId=<id>` | GET | Call records for a lead. Returns `{_metadata, calls}`. Requires `leadId` (quirk #34). |
+| `/v1.0/call/url/{callId}` | GET | Recording URL for a single call. Enables a download-transcribe-summarize workflow if the user is on Lofty's dialer. |
+| `/v1.0/communication/call/v2` | GET | A v2 of call history. Be cautious: some Lofty v2 endpoints return empty (activities does, quirk #3). Test before adopting. |
+| `/v1.0/vendor/list` | GET | List of team vendors (lenders, TCs, inspectors). Bare list response, no `_metadata` (quirk #35). |
+| `/v1.0/getPublishedListings` | GET | XML/RETS feed of the agent's published listings. Needs `Accept: application/xml` (quirk #36). |
+| `/v1.0/transaction/customfields` | GET | Custom fields available on transaction records. The starter has `get_custom_fields` for LEADS but not transactions. |
+| `/v1.0/teamFeatures/custom-field` | POST | Add a custom field to the team's lead schema programmatically. |
+| `/v1.0/team-features/lead-pond/{id}` | GET | Get a single lead pond by ID. Starter has list-all via `get_lead_ponds`. |
+| `/v1.0/appts` | GET | List Appointments. Separate from the `/v2.0/calendar` endpoints the starter uses. Needs a date-range param. |
+| `/v1.0/leads/assignee` | POST | Resolve who should be assigned a lead based on the team's routing rules. Useful in multi-agent teams. |
+
+### Skip unless the team has multiple agents
+
+- `/v1.0/routing/*` (6 endpoints): Lead Routing rule CRUD per business type.
+- `/v1.0/org/*` (5 endpoints): Agent Organization, add/update offices, get org, list permission profiles.
+- `/v1.0/agent/{agentId}/tag/add` and `/v1.0/agent/profile/add`: agent onboarding and tagging.
+- `/v1.0/brokermint/*`: Brokermint integration. Skip unless the team uses Brokermint.
+- `/v1.0/tasks` v1 (6 endpoints): an older task API. The starter uses `/v2.0/calendar` which works fine.
+
+### What Lofty does NOT expose via API
+
+These features are visible in the Lofty UI but have no documented API surface as of May 2026. They are either web-only or require OAuth + a vendor scope that personal API keys do not have:
+
+- **Smart Plans** (drip automation, holiday triggers, up to 80 steps). Closest surface is Zapier triggers, not direct API.
+- **Property Alerts management** as a standalone object. The workaround is to write `leadInquiry` (above), which auto-generates alerts.
+- **AI Sales Agent, AI Lead Health Analysis, AI Assistant, AI Smart Plans Workflow.** Web-only.
+- **Smart Lists / Saved Filters.** No API, filter client-side.
+- **Mass Email / Mass Text bulk send.** No API. Loop client-side or use Smart Plans through the UI.
+- **Reporting / Activity Leaderboard / Business Summary.** No API.
+- **Marketing tools** (Listing Ads, PPC, postcard mailers). No API.
+
+When the user asks for one of those, do not waste time guessing endpoints. Tell them it's UI-only and either coach them to do it in Lofty, or build the equivalent outside Lofty (e.g., the four Cloudflare Workers in this skill replace some of what Smart Plans does for showings).
+
+---
+
 ## Building beyond Lofty
 
 The same Cowork + skill pattern works for other CRMs and tools. To extend this skill into a multi-CRM helper, or to fork it for a different CRM:
