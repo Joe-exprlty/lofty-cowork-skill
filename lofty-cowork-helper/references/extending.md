@@ -45,22 +45,32 @@ Things deliberately left OUT of the starter:
 
 Why it exists: `/v1.0/leads` silently ignores `keyword` (quirk #2). Without an index, `find_client` can only see the 25 most recently created leads. The starter solves this with a leads index that has two backends. Same `find_client(name)` API; different source under the hood.
 
-### Backend A: local file (default)
+### Backend A: local file (default, with auto-refresh)
 
-The starter's `_load_leads_index_from_file` reads `data/leads_index.json`. Build it with:
+The starter's `_load_leads_index_from_file` reads `data/leads_index.json`. As of v1.10 the file stays current automatically via two Cowork scheduled tasks:
 
-```bash
-python3 scripts/refresh_leads_index.py
+```
+# Bootstrap (one time, during Easy Mode install):
+python3 scripts/refresh_leads_index.py --full --resumable
+
+# Daily incremental (registered by Easy Mode at install time):
+python3 scripts/refresh_leads_index.py --incremental
+
+# Weekly full reconciliation (registered by Easy Mode at install time):
+python3 scripts/refresh_leads_index.py --full --resumable
 ```
 
-The script paginates `/v1.0/leads` with scrollId and writes the file atomically. Re-run it periodically:
+The three modes:
 
-- Casual use: every couple of weeks.
-- Active prospecting (lots of new leads): weekly.
+- `--incremental` pulls page 1 only, merges new IDs into the existing file, and uses `_metadata.total` to decide whether the file is in parity with Lofty. Under 30 seconds wall time. Fits in Cowork's 45-second bash budget. Exit code 0 (parity), 2 (escalate to full), or 1 (hard failure).
+- `--full --resumable` is the chunked weekly. Checkpoints state to `data/.refresh-state.json` after each page so Cowork can run multiple bash invocations against it without restarting. Exit code 3 means "re-invoke me"; exit 0 means the file was atomically written. Total wall time is the same as the old blocking full scan (about 3 minutes for 650 leads), just spread across calls.
+- No flag (default) runs the old blocking full scan in one process. Use from a real terminal when you don't want to wait for the Cowork tick-tock.
 
-Run from your real terminal, not Cowork's bash tool (45-second timeout would cap this at ~6 API calls; the full scan takes ~3 minutes for 650 leads).
+Every run appends a structured line to `data/.refresh-log.jsonl` so `kit_health_check.py` and the `find_client` stale warning know whether auto-refresh is working.
 
-The starter prints a (non-blocking) staleness warning when the file is older than `LOFTY_LEADS_INDEX_STALENESS_DAYS` (default 14).
+The starter prints a (non-blocking) staleness warning when the file is older than `LOFTY_LEADS_INDEX_STALENESS_DAYS` (default in v1.10 is 2 days, down from 14, since the daily incremental is expected to keep the file fresh). `find_client` also returns a structured `stale_warning` key on its result when the index is stale, so Claude can offer the user a refresh without the user touching a terminal.
+
+Cowork scheduled tasks only run while Claude Desktop is running. If the user closes Claude for a week, the daily task pauses. The weekly full will reconcile any gap on the next Sunday tick.
 
 ### Backend B: Cloudflare Worker fed by webhook list 2 (live, no refresh)
 

@@ -4,6 +4,22 @@ Step-by-step recipes for the most common things real estate agents and VAs ask C
 
 ---
 
+## How the leads index stays current
+
+The kit keeps a local file of every lead at `data/leads_index.json`. `find_client` reads it instead of polling Lofty (which silently ignores `keyword`, see quirk #2). Three layers keep it fresh, in order of cost and coverage:
+
+**Live-scan fallback** runs inside `find_client` itself. When the local index has no match, it walks the 3 most recently created leads via the API to catch contacts created in the last few minutes. No setup required; works out of the box.
+
+**Daily incremental** runs automatically via a Cowork scheduled task at 2am local. It pulls only page 1 of `/v1.0/leads` (the 25 newest) and merges new IDs into the local file. Under 15 seconds wall time. Set up at install via `mcp__scheduled-tasks__create_scheduled_task` calling `python3 scripts/refresh_leads_index.py --incremental`.
+
+**Weekly full reconciliation** runs Sunday at 2am local. It re-walks every page and atomically rewrites the file, catching deletions and any drift the incremental missed. Uses `--full --resumable` so Cowork's 45-second bash limit can chunk it across multiple invocations; the script checkpoints state and Claude loops until exit 0.
+
+If something slips past the auto-refresh, `find_client` will return a `stale_warning` key on its result when the local file is older than 2 days. The user-facing message tells the user to ask Claude to refresh. Run `python3 scripts/kit_health_check.py` for a structured status report.
+
+Power users with very large CRMs or sub-day staleness requirements can also deploy Tier 4 (the leads-index Worker, free Cloudflare tier) for webhook-driven real-time mirroring. See `references/extending.md`.
+
+---
+
 ## Find a client by name
 
 The starter approach (limited):
@@ -196,6 +212,61 @@ api.create_webhook(list_id=2, url="https://leads-index.<your-subdomain>.workers.
 ```
 
 To delete one: `api.delete_webhook(subscribe_id)`.
+
+---
+
+## Tag a lead safely
+
+ALWAYS use the v1.10 wrappers, never `update_lead(tags=...)` directly. The naive call REPLACES the entire tag list (silently deleting every existing tag) and treats integer tagIds as new tag NAMES (polluting the team library). See quirks #38 and #39.
+
+```python
+# Add a tag without destroying existing ones:
+api.add_tag(lead_id, "Acreage")
+
+# Remove just one tag:
+api.remove_tag(lead_id, "Buyer")
+
+# Explicit replace (use only when you really mean "clear and reset"):
+api.set_tags(lead_id, ["Active", "Hot"])
+```
+
+Each call reads the current tag names, applies the change, writes back, and pushes a `tag_change` event to `data/.kit-history.jsonl` with the before and after lists. If a tag change ever seems wrong, run `python3 scripts/kit_history.py 20` to inspect the recent trail.
+
+---
+
+## Read a lead's segments
+
+Segments are read-only via the public API. To add or remove segments, use the Lofty web UI; see quirk #40 for why.
+
+```python
+# Slim form, just the segments list:
+segments = api.get_lead_segments(lead_id)
+
+# Or via find_client (segments are now part of the slim match dict):
+result = api.find_client("Jane Smith")
+if "match" in result:
+    print(result["match"]["segments"])
+```
+
+---
+
+## Check kit health
+
+When the user asks "is everything working?" or "is my Lofty integration healthy?":
+
+```
+python3 scripts/kit_health_check.py
+```
+
+Three-line human summary by default. Add `--json` for a structured report Claude can parse. Exit code 0 = all OK, 1 = needs attention. Also push a record to `data/.kit-history.jsonl` every run so we have a trail.
+
+For deeper debugging, read the history directly:
+
+```
+python3 scripts/kit_history.py 20    # last 20 events
+```
+
+The history captures health checks, tag changes, and any other kit event worth tracking.
 
 ---
 

@@ -19,6 +19,8 @@ When the skill activates, decide which path the user is on:
 - **A Tier 4 deploy in mind** ("set up Tier 4," "deploy the leads-index Worker," "set up live leads index") → jump to "Tier 4 setup: leads-index Worker" below. Tier 4 is optional and runs on the Cloudflare free plan.
 - **A showing to schedule end-to-end** ("schedule a showing," "book a tour," "set up [client] at [address] at [time]") → hand off to the `skills/schedule-showing/` sub-skill, which drives the multi-stop orchestration (resolve client, prepare each stop, calendar event, showing-log note, verify SMS queue). Requires `prepare_showing` helpers in the starter (v1.3.0+) and a calendar backend matching `CALENDAR_PROVIDER` in `CLAUDE.md`. The Tier 3 SMS Worker is optional; the orchestration works without it but skips Step 7.
 - **An error or unexpected behavior** → use "When something behaves unexpectedly" below, which points at `references/quirks.md` and the troubleshooting decision tree in `references/full-guide.md`.
+- **A health check** ("is everything working," "check kit health," "is the leads index current," "is my Lofty connection ok," "is auto-refresh running") → run `python3 scripts/kit_health_check.py` and summarize the result in plain English. If any check returns warn or fail, offer to fix it (most commonly: re-run a leads-index refresh, or re-register the scheduled tasks).
+- **A tag change** ("add tag X to [client]," "tag this lead as Acreage," "remove the Buyer tag from [client]," "what tags does [client] have") → use the v1.10 tag helpers `api.add_tag`, `api.remove_tag`, `api.set_tags`. NEVER call `api.update_lead(tags=[...])` directly for tag operations: it REPLACES the entire tag list (silently deletes existing tags) and items must be tag NAMES, not tagIds. The helpers handle both correctly and log to `data/.kit-history.jsonl` for recovery.
 
 If the user mentions Lofty in passing without a clear task, ask one short clarifying question: "Are you setting up Lofty for the first time, or is there a specific task you want help with?"
 
@@ -161,7 +163,34 @@ Then offer next steps:
 >
 > Try one. I'll be here."
 
-### 10. Hand-off
+### 10. Bootstrap the leads index and schedule auto-refresh
+
+The skill needs a local file of every lead they have so it can find clients by name without hitting Lofty on every call. The first build takes about 3 minutes for 650 leads. After that, the daily and weekly scheduled tasks keep it fresh in the background.
+
+Say:
+
+> "I'm going to load your client list now. It's a one-time setup that takes about 3 minutes. After this, I'll schedule it to refresh in the background so it stays current. You don't have to think about it."
+
+Run the resumable full scan via bash:
+
+```
+python3 scripts/refresh_leads_index.py --full --resumable
+```
+
+The script checkpoints state after each page. If the bash call hits its 45-second timeout, the script exits with code 3 and a saved state. Re-invoke it. Repeat until exit 0 (final atomic write of `data/leads_index.json`).
+
+When the bootstrap is done, register the two scheduled tasks via `mcp__scheduled-tasks__create_scheduled_task`:
+
+1. **Daily incremental.** Name: `lofty-leads-incremental`. Cron: daily at 2am local. Command: `python3 scripts/refresh_leads_index.py --incremental` (from the workspace folder). Catches new leads created since the last run. Fits in under 30 seconds.
+2. **Weekly full reconciliation.** Name: `lofty-leads-full`. Cron: Sunday at 2am local. Command: `python3 scripts/refresh_leads_index.py --full --resumable`. Catches deletions and reconciles drift. Several minutes wall time spread across Cowork's bash budget.
+
+Tell the user:
+
+> "Done. Your client list is loaded, and I've set up auto-refresh so it stays current. The daily check runs at 2am; the weekly full sync runs Sunday at 2am. If anything ever feels off, just ask me 'is everything working' and I'll check."
+
+Note: Cowork scheduled tasks only run while Claude Desktop is running. If they close Claude for a week, the daily task pauses; the next launch will resume the schedule and re-incremental on the next 2am window. A weekly full will reconcile any gap.
+
+### 11. Hand-off
 
 After the demo, tell them:
 

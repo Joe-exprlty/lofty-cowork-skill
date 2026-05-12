@@ -6,38 +6,85 @@ This file gets a new Claude Cowork session up to speed on the **Phase 2** build 
 
 ## NEXT SESSION QUICK START
 
-> Joe opened a new prompt and typed "Read Handoff.md and continue conversation." Follow this section to pick up exactly where we left off. Do NOT recap the prior session's work back to Joe; he was there. Get to the point.
+> Joe opened a new prompt and typed "Read Handoff.md and continue conversation." Follow this section to pick up exactly where we left off. Do NOT recap prior work back to Joe; he was there. Get to the point.
 
-**Where we left off (May 12, 2026 evening):** v1.9.0 Tier 4 is SHIPPED. The `leads-index` Worker is now in the public kit, deployed on the Cloudflare free tier, fed by Lofty webhook list 2, and read by `lofty_api.py` when `LOFTY_LEADS_INDEX_SOURCE=worker`. Layer 3 E2E surfaced that Lofty's real webhook payload shape uses plural-array buckets (`updatedLead[]`, `newLead[]`, `deletedLead[]`) and not the top-level `leadId` that the v2 draft Worker (and Joe's v1 production Worker) assumed. The v1.9.0 Worker adds `flattenLoftyPayload` to handle the real shape; unit tests grew from 67 to 95 assertions. Quirk #37 documented in `references/quirks.md`. Memory file `project_v1_9_0_shipped.md` flags that Joe's production `saling-automation/worker/leads_index_worker.js` has the same bug and needs the same fix as a follow-up. The v1.7.0, v1.8.0, and v1.9.0 commits and tags are all on origin.
+**Where we are (end of May 12, 2026 second session):**
 
-Before v1.9.0 (still relevant context): v1.8.0 Stage C shipped on 2026-05-11 evening (`schedule-showing` orchestration sub-skill ported from `saling-automation`). v1.7.0 shipped the same day (Tier 3 SMS Worker with per-showing Durable Object alarms, 633ms E2E precision). v1.6.3 shipped earlier that day (housekeeping patch closing the v1.6.2 deferred list). Everything through v1.9.0 is on origin.
+- **v1.10.0 SHIPPED.** Hands-off leads index for non-tech users: daily incremental + weekly resumable full via Cowork scheduled tasks; safe `add_tag` / `remove_tag` / `set_tags` wrappers; read-only segments support; lean `kit_health_check.py` (3-line human output) plus a hidden `data/.kit-history.jsonl` event trail for debugging; new quirks #38-#41 documented. See the "v1.10.0 SHIPPED" section below.
+- **v2.0.0 is next.** Public-release packaging: bloat audit on SKILL.md (<5,000 tokens), `docs/index.html` rewrite around the conversational pitch, two-path INSTALL, per-team stage probing, resolve outstanding decisions #1/#2/#3, decide short-links Worker fate, package and ship. Full plan in ROADMAP.md.
 
-v1.6.3 (housekeeping patch, deleted the leftover `_tmp_worker_test.mjs` stub) and the v1.6.2 tag were both shipped earlier on 2026-05-11 and pushed to origin. Three deferred items from the v1.6.2 list remain intentionally in place per Joe's call: `HANDOFF.md`, `lofty-api-guide.md`, and `RESEARCH_NOTES_2026-05-07.md`.
+**The next session's work is already decided. Do NOT ask Joe what to work on. Drive v2.0.0 per ROADMAP.md.**
 
-Before v1.6.3 (still relevant context): v1.6.2 was a pure pre-public-release doc cleanup pass on top of v1.6.1. Pure doc drift fixes: broken file pointers in `CLAUDE.md.template`, "Tier 3 v1.6" stragglers in `SKILL.md` corrected to v1.7, Lofty API key path made consistent across `env-template`, `full-guide.md`, and the public `docs/index.html` GitHub Pages page, stale "starter does NOT include showing helpers" wording in `workflows.md`, five em-dashes scrubbed out of `workers_setup.md` per the brand rule, `README.md` repo-structure tree rewritten to reflect actual v1.6.1+ contents, and the `wrangler.jotform.toml` JOTFORM_FIELD_MAP comment block reframed to lead with the new working default. Existing v1.6.1 installs continue running without redeploy.
+**Silent checks before your first message (do NOT narrate to Joe):**
 
-Before v1.6.2 (still relevant context): v1.6.1 fixed first-time-user papercuts surfaced by an end-to-end test of v1.6 Easy Mode against brand new Jotform and Cloudflare accounts. One real code fix (canonical `JOTFORM_FIELD_MAP` default in `wrangler.jotform.toml` so fresh template clones route qid 51 correctly; previously it was `"{}"` and `memory_notes` data dropped silently) plus `workers_dev`/`preview_urls` explicit toml settings plus a substantial doc rewrite covering MCP install prereq, Lofty API token retrieval, Cloudflare token Account/Zone Resources dropdowns, Jotform UI path updates, wrangler interactive prompts, workers.dev SSL cert propagation delay, and the Jotform UI webhook wiring fix.
+1. Verify `~/Code/saling-automation/` is mounted. Request via `mcp__cowork__request_cowork_directory` if not.
+2. `git log --oneline -3` on `~/Code/lofty-cowork-skill`. Confirm v1.10.0 is the most recent ship commit. `git ls-remote --tags origin | grep v1.10.0` should print one line.
+3. Run all five test suites:
+   - `node lofty-cowork-helper/scripts/test_worker_parsers.mjs`
+   - `node lofty-cowork-helper/scripts/test_showing_sms_worker.mjs`
+   - `node lofty-cowork-helper/scripts/test_leads_index_worker.mjs`
+   - `PYTHONPATH=lofty-cowork-helper/assets python3 lofty-cowork-helper/scripts/test_refresh_leads_index.py`
+   - `PYTHONPATH=lofty-cowork-helper/assets python3 lofty-cowork-helper/scripts/test_lofty_api_v1_10.py`
+4. Cloudflare MCP state: `mcp__c55037a8-92bb-4dab-ab11-9e055ea57019__accounts_list` should return Joe's production account `22c50f7ac3f85d789dfec570642ae9af`.
+5. Read `ROADMAP.md` v2.0.0 section. Note the recommendation to test the picker-split early (the bloat audit moves Tier 2/3/4 pickers to a `pickers/` directory; if that breaks Cowork's skill activation, fall back to slimming SKILL.md in place).
 
-Tier 3 SMS Worker (v1.7), Stage C orchestration sub-skill (v1.8), and Tier 4 leads-index Worker (v1.9) are all DONE. The remaining ladder to v2.0.0 is short-links Worker decision (per locked decision #11; candidate-for-cut) and a v2.0.0 packaging pass.
+**First user-facing message:**
 
-**MCP STATE (as of v1.9.0 ship):** Joe's Cloudflare MCP is back on production (`Joe@sellingpdxhomes.com's Account`, `22c50f7ac3f85d789dfec570642ae9af`) as confirmed during the v1.9.0 session. Jotform MCP state was NOT re-verified during v1.9.0; assume it may still be on the `jsaling31@gmail.com` test account until next verified. Test-account artifacts still in place per Joe's earlier choice: Cloudflare Worker `jotform-to-lofty.jsaling31-test.workers.dev`, Jotform form `261294822008152`, and the `.test-v1.6/` scratch folder in the kit (gitignored). The `.test-v1.9/` scratch folder is also gitignored from the v1.9.0 E2E session.
+> Ready to start v2.0.0 per ROADMAP.md. Recommended order: (1) test the picker-split first as a spike (de-risks the bloat audit) before committing to the full SKILL.md rewrite. (2) Then the SKILL.md / docs / INSTALL rewrites. (3) Then per-team stage probing and bootstrap UX. (4) Then resolve the three outstanding decisions and the short-links Worker fate. (5) Then package and ship. Does that order work?
 
-**Production-side action item carried over from v1.9.0:** Joe's `saling-automation/worker/leads_index_worker.js` (the v1 deployed in production since 2026-04-22) has the same broken `extractLeadId` logic that v1.9.0 fixed in the public kit. It has been silently dropping every Lofty webhook list 2 event since deployment. The production KV index has stayed fresh only because `scripts/refresh_leads_index.py --push-to-worker` does periodic bulk imports. Recommend porting the `flattenLoftyPayload` helper from the public kit into Joe's production Worker as the next non-public engineering task. See memory file `project_v1_9_0_shipped.md` for the full diff context.
+**Open follow-ups carried forward from today (low priority, not blocking v1.10):**
 
-**Do these checks silently first (do NOT narrate them to Joe):**
+- **3 garbage tags in Joe's Lofty team library.** Auto-created by an early test where I sent integer tagIds instead of names. Names are `"6536952"`, `"903557"`, `"954693"`. They are orphans (not on any leads). Joe needs to delete them manually via Lofty's web UI (Settings → Tags). The public API doesn't expose tag deletion at any common path.
+- **Robin Hood (`leadId 1147016328604404`) has an "Acreage" tag** that's intentionally there from the empty-tags edge case test. Leave or strip per Joe's call; he said leave.
+- **Jack Ryan (`leadId 1146742878287627`) has an "Acreage" tag** from the populated-tags add test. Leave or strip per Joe's call; he said leave.
+- **Bulk-import cleanup task (#21) was paused mid-session.** v2 production Worker is now live so a bulk-import would now both clean up stage-excluded leads AND refresh the live data. Not required for v1.10 but useful before the first weekly full scan would have run organically.
+- **Outstanding decisions #1, #2, #3** (HANDOFF.md placement, lofty-api-guide.md duplication, RESEARCH_NOTES file) still parked. Resolution slot is v2.0.0 packaging, per ROADMAP.md.
 
-1. Verify `~/Code/saling-automation/` is mounted via `mcp__cowork__request_cowork_directory`. If not, request it.
-2. Run `git log --oneline -5` on `~/Code/lofty-cowork-skill`. Confirm the most recent commit is the v1.9.0 ship commit and the working tree is clean. Confirm `git ls-remote --tags origin` shows `v1.7.0`, `v1.8.0`, AND `v1.9.0`. If `v1.9.0` is missing, ask Joe to push tags before doing anything else.
-3. Run `node lofty-cowork-helper/scripts/test_worker_parsers.mjs`, `node lofty-cowork-helper/scripts/test_showing_sms_worker.mjs`, AND `node lofty-cowork-helper/scripts/test_leads_index_worker.mjs`. All three should pass cleanly (Tier 2: parser, Tier 3: 36 assertions, Tier 4: 95 assertions). This reassures you that nothing has rotted since v1.9.0 shipped.
-4. Check MCP state: call `mcp__c55037a8-92bb-4dab-ab11-9e055ea57019__accounts_list`. Cloudflare should name `Joe@sellingpdxhomes.com's Account` (production) per the v1.9.0 ship state. If it names `Jsaling31@gmail.com's Account` instead, surface that to Joe.
-5. Decide what comes next. Two paths to pick between:
-   - **A: production-side cleanup.** Port the `flattenLoftyPayload` fix from the public kit into `saling-automation/worker/leads_index_worker.js` so Joe's production Worker stops silently dropping Lofty webhooks. About 20 minutes including a quick wrangler deploy. Not part of the public kit roadmap, but high value for Joe.
-   - **B: short-links Worker decision.** Locked decision #11 flagged this for investigation. Three options at this checkpoint: port it as v1.9.1, formally remove it from the roadmap, or keep it parked. Defer-until-asked is also fine; the public kit ships fine without it.
-   - **C: v2.0.0 packaging.** First major public release. Announce on the GitHub Pages page, package the `.skill`, get the 25-minute realtor talk on the calendar. Outstanding decision #1 (the `HANDOFF.md` placement question) should be resolved before v2.0.0.
+**MCP state at session end:** Cloudflare MCP on production (`Joe@sellingpdxhomes.com's Account`, account id `22c50f7ac3f85d789dfec570642ae9af`). Jotform MCP not re-verified during this session, assume possibly still on test account from v1.6.1 E2E. Re-verify before any Jotform call by fetching production form `261040658235049`.
 
-**Then, as your FIRST user-facing message, do NOT pick for Joe. Lead with:**
+**`.git/index.lock` warning:** the host's GitHub Desktop sometimes holds `~/Code/lofty-cowork-skill/.git/index.lock`, blocking commits from the Cowork sandbox. If a commit step fails with "Another git process seems to be running," ask Joe to `rm .git/index.lock` from his terminal or close GitHub Desktop.
 
-> v1.9.0 Tier 4 is shipped. The big open call is what to do next: (A) port the v1.9.0 webhook-parser fix into your production saling-automation Worker so it stops silently dropping events, (B) make the short-links Worker decision, or (C) start the v2.0.0 packaging pass. Which one?
+**Saling-automation working-tree state at session end:** modified files include `worker/leads_index_worker.js` (replaced by v2 copy), new file `worker/wrangler.leads-index.toml`, and possibly `docs/` updates. These changes are uncommitted on the host. Joe needs to commit them to his private repo when convenient. Suggested commit message: `leads-index: upgrade production Worker to v2 with flattenLoftyPayload parser fix`.
+
+---
+
+## v1.10.0 SHIPPED (2026-05-12 second session)
+
+Hands-off leads index for non-tech users. The Tier 1 cache stays current without an agent ever opening a terminal. Plus safer tag operations, a lean health check, and a unified event trail for debugging. What landed:
+
+**Refresh architecture.** `scripts/refresh_leads_index.py` now has three modes:
+- `--incremental` (daily Cowork scheduled task): pulls page 1, merges new IDs into the existing file, uses `_metadata.total` for parity detection. Exit code 2 escalates to a full scan when more new leads exist than fit on page 1, or when upstream deletions are detected. Under 30s wall time.
+- `--full --resumable` (weekly Cowork scheduled task): chunked across invocations, checkpoints state to `data/.refresh-state.json` after each page, exits 3 when per-invocation budget (default 30s) is reached. Final `leads_index.json` is atomically written only on completion (exit 0). Stale state (>1 hour by default) is auto-discarded.
+- No flag (default): blocking full scan, unchanged from pre-v1.10. For power users from a real terminal.
+
+Every run appends a structured line to `data/.refresh-log.jsonl`.
+
+**Kit health and history.** `scripts/kit_health_check.py` produces a 3-line summary by default (`[OK]` icon + Lofty API status + Leads index age + Auto-refresh status). `--json` for structured output. Exit 0 / 1. `scripts/kit_history.py` is the shared event-log helper used by the health check, the tag-write wrappers, and any future automation worth tracking. Auto-prunes at 1 MB. The user-facing health summary stays lean; the hidden `data/.kit-history.jsonl` trail is what we read when something slips through.
+
+**lofty_api.py additions.**
+- `find_client` now attaches `stale_warning` to every return shape when the local index is older than `LEADS_INDEX_STALENESS_DAYS` (default dropped from 14 to 2). The structured value has `{age_days, message, action: "ask_to_refresh"}` so Claude can offer a refresh without the user touching a terminal. Backward compatible: existing callers reading `match`/`candidates`/`none` keep working.
+- `find_client` slim match dicts now include `tags` and `segments`.
+- `get_lead_segments(lead_id)` convenience helper. Read-only; segments are documented as read-only in quirk #40.
+- `add_tag(lead_id, tag_name)`, `remove_tag(lead_id, tag_name)`, `set_tags(lead_id, tag_names)`. Read-merge-write. Each call pushes a `tag_change` event into `data/.kit-history.jsonl` with action / lead_id / tag / before / after. `set_tags` refuses non-string entries to prevent the integer-tagId garbage-tag pollution.
+- `update_lead` docstring now warns about both tag-write traps.
+
+**Easy Mode wiring.** SKILL.md routing block adds health-check and tag-change cases. Step 10 splits into "Bootstrap the leads index and schedule auto-refresh" (calls `--full --resumable` for the initial build, registers daily + weekly tasks via `mcp__scheduled-tasks__create_scheduled_task`) and step 11 "Hand-off."
+
+**Docs updates.**
+- `references/quirks.md` adds #38 (`update_lead` replace-semantics on tags), #39 (tag-list items are names not IDs; orphan-tag pollution), #40 (segments read-only via public API), #41 (`/v1.0/leads` ignores `assigneeId`/`stageId`/`tagId` as query filters).
+- `references/workflows.md` new sections: "How the leads index stays current," "Tag a lead safely," "Read a lead's segments," "Check kit health."
+- `references/extending.md` Backend A rewritten around the scheduled-task model and the three refresh modes.
+- `.gitignore` adds `data/.refresh-state.json`, `data/.refresh-log.jsonl`, `data/.kit-history.jsonl`, `data/.tag-log.jsonl`.
+
+**Test coverage.**
+- `scripts/test_refresh_leads_index.py`: 52 assertions covering both new refresh modes (no-baseline escalation, parity, new-lead merge, both total-mismatch escalation paths, API errors, single-invocation completion, multi-invocation continue/resume, stale-state discard, dedup across overlapping pages, mid-scan crash with state save).
+- `scripts/test_lofty_api_v1_10.py`: 38 assertions covering `find_client` stale_warning, segments in matches, `get_lead_segments`, all three tag-write wrappers, kit_history wiring.
+- The Tier 2/3/4 JS suites (32 + 36 + 95 assertions) still pass; no regressions.
+
+**Carried-over follow-ups (none are blocking v2.0):**
+- Three garbage tags ("6536952", "903557", "954693") still in Joe's Lofty team library. The v1.10 wrappers make this kind of pollution structurally impossible going forward, but the existing orphans must be deleted via the Lofty web UI (Settings -> Tags); the public API does not expose tag deletion.
+- Acreage tag on Robin Hood (`leadId 1147016328604404`) and Jack Ryan (`leadId 1146742878287627`) from the v1.9.0 session tests. Joe said leave.
+- Outstanding decisions #1, #2, #3 from v1.6.2 still parked. Resolution slot is v2.0.0 packaging.
 
 ---
 
@@ -347,9 +394,11 @@ The Worker has more deterministic logic than the orchestration sub-skill but les
 
 ---
 
-## Status snapshot (May 12, 2026 evening, post-v1.9.0 ship)
+## Status snapshot (May 12, 2026 evening, post-v1.9.0 ship + production v2 upgrade)
 
-- **v1.9.0 SHIPPED to origin.** Tier 4 ships: the `leads-index` Worker, a webhook-fed live KV mirror of Lofty leads, opt-in on the Cloudflare free tier. Adds `workers/leads_index_worker.js`, `workers/wrangler.leads-index.toml`, `scripts/test_leads_index_worker.mjs` (95 unit assertions), a 245-line Tier 4 setup section in `references/workers_setup.md`, a Tier 4 picker in `SKILL.md`, updates to `extending.md` and `quirks.md` (quirk #37 documents Lofty's real webhook list 2 payload shape), and a v1.9.0 entry in `CHANGELOG.md`. Layer 3 E2E surfaced that Lofty's webhook payload uses plural-array buckets (`updatedLead[]`, etc.) instead of top-level `leadId`. New `flattenLoftyPayload` helper handles the real shape. Joe's production `saling-automation` Worker has the same parser bug and is queued for a follow-up port.
+- **ROADMAP.md drafted at repo root.** Source of truth for v1.10.0 and v2.0.0 scope plus deferred items. v1.10.0 = refresh architecture + segments-read + tag-write helpers + kit health check. ~8 hours.
+- **Production saling-automation `leads-index` Worker upgraded to v2** (2026-05-12 evening). The parser fix that landed in public-kit v1.9.0 is now also in Joe's production. Confirmed via deploy plus `/stats` showing eventCount=648 (count of silently-dropped webhook events accumulated since April 22). Production `wrangler.leads-index.toml` newly written for reproducible future deploys. Three production secrets verified in place.
+- **v1.9.0 SHIPPED to origin.** Tier 4 leads-index Worker in the public kit. 95 unit assertions. Quirk #37 documents Lofty's real webhook list 2 payload shape. v1.7.0, v1.8.0, v1.9.0 all on origin.
 - **v1.8.0 SHIPPED to origin.** Commit `8699ad8` and tag on origin/main. Stage C ships: the `schedule-showing` orchestration sub-skill at `lofty-cowork-helper/skills/schedule-showing/SKILL.md`. Joe-specifics stripped, all references parameterized via the workspace `CLAUDE.md`. SKILL.md trigger phrases, routing block, and file map updated. `workflows.md` and `extending.md` get lead-in pointers; existing primitive recipes preserved as manual fallbacks. Closes the 25-point UX gap between the public kit and Joe's daily workflow. No new infrastructure, no new dependencies.
 - **v1.7.0 SHIPPED to origin.** Commit `e8b05dd` and tag on origin/main. Tier 3 SMS Worker (`showing-sms`) with per-showing Durable Object alarms. Layer 3 E2E pass clean (633ms end-to-end precision, real SMS delivered to maintainer's phone). Adds ~620 lines across Worker, wrangler config, unit tests, Tier 3 walkthrough, and SKILL.md picker. Requires Cloudflare Workers Paid plan for installs.
 - **v1.6.3 SHIPPED.** Tag pushed to origin. Single-file housekeeping patch removing the leftover `_tmp_worker_test.mjs` stub. Retroactively created the `v1.6.2` tag in the same session.
@@ -362,8 +411,10 @@ The Worker has more deterministic logic than the orchestration sub-skill but les
 - Phase 2 Stage B v1.7 is COMPLETE through v1.7.0. Tier 3 SMS Worker shipped 2026-05-11.
 - Phase 2 Stage C is COMPLETE through v1.8.0. `schedule-showing` orchestration sub-skill shipped 2026-05-11 evening.
 - Phase 2 Tier 4 is COMPLETE through v1.9.0. leads-index Worker shipped 2026-05-12 evening with the webhook-parser fix discovered during Layer 3 E2E.
-- Short-links Worker remains the only opt-in Worker on the roadmap (locked decision #11; candidate-for-cut).
-- Phase 2 onboarding step for the orchestration sub-skill in Easy Mode is NOT STARTED (still NOT-STARTED for v2.0.0 packaging).
+- **v1.10.0 is the next public-kit release.** Scope per ROADMAP.md: refresh architecture (daily incremental + weekly full + Cowork scheduled tasks), read-only segments support, three safe tag-write helpers, kit health check script, stale-warning rewrite. ~8 hours of engineering.
+- v2.0.0 is the first major public release after v1.10 lands. Scope per ROADMAP.md: bloat audit on SKILL.md, landing-page rewrite, per-team stage probing, initial-bootstrap UX, resolve outstanding decisions 1-3, short-links decision.
+- Short-links Worker remains the only opt-in Worker still parked (locked decision #11; candidate-for-cut). Decision deferred to v2.0.0 packaging.
+- Phase 2 onboarding step for the orchestration sub-skill in Easy Mode is NOT STARTED (deferred to v2.0.0 packaging).
 
 If you're a new Claude session: do NOT redesign Phase 2 from first principles. The reference implementation is `~/Code/saling-automation/`. Phase 2 of the public skill is a port + strip + parameterize, not a fresh design. The TIERING decision (#9 below) controls WHICH pieces port and in what order; it does not change the underlying architecture.
 

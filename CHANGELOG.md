@@ -6,6 +6,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [1.10.0] - 2026-05-12
+
+Hands-off leads index for non-tech users, plus safer tag operations and a kit health check. The Tier 1 leads index now stays current without an agent ever opening a terminal: a daily incremental and a weekly resumable full reconciliation run on Cowork scheduled tasks.
+
+### Added
+- `scripts/refresh_leads_index.py` gains two new modes. `--incremental` pulls page 1 only, merges new IDs into the existing local file, and uses `_metadata.total` to detect parity vs Lofty (exits 2 to escalate when more new leads exist than fit on page 1, or when upstream deletions are detected). `--full --resumable` is the chunked weekly: checkpoints state to `data/.refresh-state.json` after each page, exits 3 when the per-invocation budget (default 30s) is reached. Re-invoke until exit 0. The actual `leads_index.json` is only atomically written on completion, so a crash mid-scan never corrupts the file. Default (no flag) preserves the old blocking full-scan behavior.
+- `scripts/kit_health_check.py`. A short status check Claude runs when the user asks "is everything working?" Three-line human summary by default (`--json` for structured output). Covers env, Lofty API connectivity, leads index age, and auto-refresh status. Exit codes 0 (ok) / 1 (needs attention).
+- `scripts/kit_history.py`. Shared event log at `data/.kit-history.jsonl`. The user-facing health summary stays lean; this hidden trail is what we read when something slips through. Auto-prunes when it grows past 1 MB. Tiny CLI: `python3 scripts/kit_history.py 20` shows the last 20 events.
+- `scripts/test_refresh_leads_index.py`. 52 assertions covering both new refresh modes (no baseline, parity, new-lead merge, both escalation paths, API errors, single-invocation completion, multi-invocation continue/resume, stale-state discard, dedup across pages, mid-scan crash with state save).
+- `scripts/test_lofty_api_v1_10.py`. 38 assertions covering the v1.10 lofty_api additions (find_client stale_warning, segments in matches, get_lead_segments, all three tag-write wrappers, kit_history wiring).
+- `lofty_api.py` `get_lead_segments(lead_id)` convenience helper. Reads via `get_lead` and returns the segments list (or empty list). Read-only; Lofty does not expose segment writes via the public API (see new quirk #40).
+- `lofty_api.py` safe tag-write helpers: `add_tag(lead_id, tag_name)`, `remove_tag(lead_id, tag_name)`, `set_tags(lead_id, tag_names)`. Each reads the current tag NAMES, applies the change, writes back, and pushes a `tag_change` event into `data/.kit-history.jsonl` with before and after lists. The naive `update_lead(tags=[...])` pattern REPLACES the list and treats items as names not tagIds; the wrappers fix both traps. `set_tags` refuses non-string entries to prevent the integer-tagId garbage-tag pollution confirmed live on 2026-05-12.
+- `references/quirks.md` new entries: #38 (update_lead replace-semantics on tags), #39 (tag-list items are names not IDs; the orphan-tag pollution trap), #40 (segments are read-only via public API), #41 (`/v1.0/leads` also silently ignores `assigneeId`, `stageId`, `tagId` as query filters).
+- `references/workflows.md` new sections: "How the leads index stays current," "Tag a lead safely," "Read a lead's segments," "Check kit health."
+
+### Changed
+- `lofty_api.py` `find_client` returns now include `tags` and `segments` on every slim match dict, and surface a structured `stale_warning` key on every return shape when the local index is older than `LEADS_INDEX_STALENESS_DAYS`. Backward compatible: callers that read `match`/`candidates`/`none` keep working unchanged.
+- `lofty_api.py` `LEADS_INDEX_STALENESS_DAYS` default dropped from 14 to 2. The daily Cowork scheduled task keeps the file fresh; any gap longer than 2 days now correctly suggests a scheduled-task failure worth flagging.
+- `lofty_api.py` stale-index warning message rewritten from "Run python3 scripts/refresh_leads_index.py" (terminal-flavored, instructional) to "Your leads index hasn't refreshed in N days. The daily scheduled task may have failed. I can run a refresh now, or you can ask me to check kit health." The same info also lands on `self._index_stale_info` so `find_client` can return it as machine-readable data.
+- `lofty_api.py` `update_lead` docstring now warns about the tag-write traps and points readers at the new wrappers.
+- `lofty-cowork-helper/SKILL.md` "How to start a session" routing block. Adds a health-check routing case (triggers: "is everything working," "check kit health," etc.) and a tag-change routing case (triggers: "add tag," "remove tag," etc.).
+- `lofty-cowork-helper/SKILL.md` Easy Mode setup. Splits the old step 10 into step 10 (Bootstrap the leads index and schedule auto-refresh) and step 11 (Hand-off). Step 10 calls `--full --resumable` for the initial build and uses `mcp__scheduled-tasks__create_scheduled_task` to register the daily incremental and weekly full tasks.
+- `references/extending.md` Backend A section rewritten to describe the v1.10 scheduled-task model (daily incremental + weekly resumable full), the three refresh modes, the new structured `stale_warning` return key on `find_client`, and the constraint that Cowork scheduled tasks only run while Claude Desktop is running.
+- `.gitignore` adds `data/.refresh-state.json`, `data/.refresh-log.jsonl`, `data/.kit-history.jsonl`, `data/.tag-log.jsonl` so runtime traces never get committed.
+
+### Notes
+- The orphan-tag pollution from the v1.9.0 session (three garbage tags named "6536952", "903557", "954693" in Joe's team library) is documented but not auto-cleaned: the public API does not expose tag deletion at any common path. Clean up via the Lofty web UI (Settings -> Tags). The v1.10 helpers make this kind of pollution structurally impossible going forward.
+
+---
+
 ## [1.9.0] - 2026-05-11
 
 Tier 4 ships. Adds the `leads-index` Worker, a third Cloudflare Worker that keeps a live mirror of the agent's Lofty leads inside Cloudflare KV. Lofty webhook list 2 feeds the Worker; `lofty_api.py` reads from the mirror when `LOFTY_LEADS_INDEX_SOURCE=worker` is set. Result: `find_client` and `get_recent_visits_from_index` stay fast and accurate even for large CRMs, with no polling and no manual `refresh_leads_index.py` runs.

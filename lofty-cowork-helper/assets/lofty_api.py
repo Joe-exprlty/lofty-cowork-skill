@@ -161,8 +161,11 @@ LEADS_INDEX_PATH = Path(
 )
 
 # Warn (don't block) if the local index is older than this many days.
+# v1.10 dropped the default from 14 to 2 because the daily Cowork
+# scheduled task is supposed to keep the index fresh; any gap longer
+# than 2 days means a scheduled-task failure that's worth flagging.
 LEADS_INDEX_STALENESS_DAYS = float(
-    os.environ.get("LOFTY_LEADS_INDEX_STALENESS_DAYS", "14")
+    os.environ.get("LOFTY_LEADS_INDEX_STALENESS_DAYS", "2")
 )
 
 # Where _load_leads_index reads from.
@@ -195,6 +198,11 @@ class LoftyAPI:
         # Memoized leads index. Loaded on first find_client / prepare_showing
         # call, reused for the rest of this LoftyAPI instance's life.
         self._leads_index = None
+        # Set by _load_leads_index_from_file when the index is older
+        # than LEADS_INDEX_STALENESS_DAYS. find_client surfaces this
+        # to the caller as a structured `stale_warning` key so Claude
+        # can offer to refresh without the user touching a terminal.
+        self._index_stale_info = None
 
     # Phase 2 Worker base URLs are class-level so subclasses can override
     # for testing. Each is read from os.environ at class load time.
@@ -348,6 +356,26 @@ class LoftyAPI:
         return self._request("GET", f"/v1.0/leads/{lead_id}/activities",
                              query_params={"limit": limit})
 
+    def get_lead_segments(self, lead_id):
+        """Return the list of segments (Lofty calls them "groups" in the
+        web UI) currently attached to a lead.
+
+        Read-only: Lofty's public API does NOT expose segment writes.
+        Segment management routes through the signed-request internal
+        API at crm.lofty.com/api/, which kit code does not call. To
+        add or remove a segment, use the Lofty web UI.
+
+        Returns a list of segment dicts (or strings, depending on
+        Lofty's response shape; we pass through whatever comes back).
+        Empty list if the lead has no segments.
+        """
+        lead = self.get_lead(lead_id)
+        if isinstance(lead, dict) and lead.get("error"):
+            return lead
+        if not isinstance(lead, dict):
+            return []
+        return lead.get("segments") or []
+
     # ------------------------- leads (write) --------------------
 
     def create_lead(self, first_name, last_name, email=None, phone=None,
@@ -368,8 +396,136 @@ class LoftyAPI:
         return self._request("POST", "/v1.0/leads", body=body)
 
     def update_lead(self, lead_id, **fields):
-        """Update fields on a lead."""
+        """Update fields on a lead.
+
+        WARNING about the `tags` field: `update_lead(lead_id, tags=[...])`
+        REPLACES the entire tag list. A naive "append a tag" pattern
+        silently deletes every other tag the lead had. Also, list items
+        are tag NAMES (strings), not tagIds; passing integers auto-
+        creates new tags whose names are those integers, which pollutes
+        your team tag library. For safe tag operations, use the
+        wrappers below: add_tag, remove_tag, set_tags.
+        """
         return self._request("PUT", f"/v1.0/leads/{lead_id}", body=fields)
+
+    # ------------------------- tag-write helpers ----------------
+
+    def _read_tag_names(self, lead_id):
+        """Read the current list of tag names on a lead.
+
+        Lofty's read responses store tags either as a list of strings
+        or as a list of {tagName, tagId, ...} dicts depending on the
+        endpoint and account. This helper normalizes both shapes to a
+        list of unique name strings.
+        """
+        lead = self.get_lead(lead_id)
+        if isinstance(lead, dict) and lead.get("error"):
+            raise RuntimeError(
+                f"get_lead({lead_id}) failed: {lead}"
+            )
+        raw = (lead.get("tags") if isinstance(lead, dict) else None) or []
+        names = []
+        seen = set()
+        for t in raw:
+            n = None
+            if isinstance(t, dict):
+                n = t.get("tagName") or t.get("name")
+            elif isinstance(t, str):
+                n = t
+            if n and n not in seen:
+                seen.add(n)
+                names.append(n)
+        return names
+
+    def _log_tag_event(self, action, lead_id, before, after, tag=None):
+        """Push a tag-change event into the unified kit history.
+
+        Best-effort: a failed log write never raises. The history file
+        is data/.kit-history.jsonl (managed by scripts/kit_history.py).
+        Inspect it when a Lofty automation seems to have done something
+        unexpected with tags.
+        """
+        try:
+            from kit_history import log_event
+            log_event(
+                "tag_change",
+                action=action,
+                lead_id=lead_id,
+                tag=tag,
+                before=before,
+                after=after,
+            )
+        except Exception:
+            pass
+
+    def add_tag(self, lead_id, tag_name):
+        """Add a single tag to a lead without destroying existing tags.
+
+        Reads the current tag names, appends the new one if it isn't
+        already there, and writes the merged list back. Logs before
+        and after to data/.kit-history.jsonl so the change is
+        recoverable.
+
+        Returns {"changed": bool, "tags": [...names], "result": <api>}.
+        """
+        if not isinstance(tag_name, str) or not tag_name.strip():
+            raise ValueError("tag_name must be a non-empty string")
+        before = self._read_tag_names(lead_id)
+        if tag_name in before:
+            self._log_tag_event(
+                "add_noop", lead_id, before, before, tag=tag_name
+            )
+            return {"changed": False, "tags": before}
+        after = before + [tag_name]
+        result = self.update_lead(lead_id, tags=after)
+        self._log_tag_event("add", lead_id, before, after, tag=tag_name)
+        return {"changed": True, "tags": after, "result": result}
+
+    def remove_tag(self, lead_id, tag_name):
+        """Remove a single tag from a lead, leaving the others alone.
+
+        Reads current names, filters, writes the result back. No-op
+        (still logged) when the tag isn't there. Returns the same
+        shape as add_tag.
+        """
+        if not isinstance(tag_name, str) or not tag_name.strip():
+            raise ValueError("tag_name must be a non-empty string")
+        before = self._read_tag_names(lead_id)
+        if tag_name not in before:
+            self._log_tag_event(
+                "remove_noop", lead_id, before, before, tag=tag_name
+            )
+            return {"changed": False, "tags": before}
+        after = [t for t in before if t != tag_name]
+        result = self.update_lead(lead_id, tags=after)
+        self._log_tag_event("remove", lead_id, before, after, tag=tag_name)
+        return {"changed": True, "tags": after, "result": result}
+
+    def set_tags(self, lead_id, tag_names):
+        """Explicit replace: set the lead's tags to exactly this list.
+
+        Use this only when the destructive semantic is what you want
+        (e.g., "clear tags then apply the canonical set"). For the
+        common case of adding or removing one tag, use add_tag /
+        remove_tag instead.
+        """
+        if not isinstance(tag_names, list):
+            raise TypeError("tag_names must be a list of strings")
+        for t in tag_names:
+            if not isinstance(t, str):
+                raise TypeError(
+                    "tag_names entries must be strings (NAMES, not "
+                    "tagIds; passing integers auto-creates garbage tags)"
+                )
+        before = self._read_tag_names(lead_id)
+        after = list(tag_names)
+        result = self.update_lead(lead_id, tags=after)
+        self._log_tag_event("set", lead_id, before, after)
+        return {
+            "changed": sorted(before) != sorted(after),
+            "tags": after,
+            "result": result,
+        }
 
     # ------------------------- notes ----------------------------
 
@@ -932,13 +1088,22 @@ class LoftyAPI:
         if refreshed_ms:
             age_days = (time.time() * 1000 - refreshed_ms) / (1000 * 60 * 60 * 24)
             if age_days > LEADS_INDEX_STALENESS_DAYS:
-                print(
-                    f"[warn] leads_index.json is {int(age_days)} days old. "
-                    f"Run 'python3 scripts/refresh_leads_index.py' to refresh, "
-                    f"or set LOFTY_LEADS_INDEX_SOURCE=worker in .env to use "
-                    f"the always-fresh Worker.",
-                    flush=True,
+                age_int = int(age_days)
+                message = (
+                    f"Your leads index hasn't refreshed in {age_int} "
+                    f"day{'s' if age_int != 1 else ''}. The daily "
+                    f"scheduled task may have failed. I can run a "
+                    f"refresh now, or you can ask me to check kit health."
                 )
+                # Record on the instance so find_client surfaces it
+                # as a structured `stale_warning` value (Claude reads
+                # the action key to decide what to offer the user).
+                self._index_stale_info = {
+                    "age_days": age_int,
+                    "message": message,
+                    "action": "ask_to_refresh",
+                }
+                print(f"[warn] {message}", flush=True)
 
         return data
 
@@ -987,7 +1152,9 @@ class LoftyAPI:
 
         name_lower = name.strip().lower()
         if not name_lower:
-            return {"none": True, "source": "index", "scanned": 0}
+            return self._attach_stale_warning(
+                {"none": True, "source": "index", "scanned": 0}
+            )
 
         owner_last = self._owner_profile()["last_name_lower"]
         index = self._load_leads_index()
@@ -1014,18 +1181,26 @@ class LoftyAPI:
                     "phone": (l.get("phones") or [""])[0],
                     "stage": l.get("stage", ""),
                     "score": l.get("score"),
+                    "tags": l.get("tags") or [],
+                    "segments": l.get("segments") or [],
                 })
                 if l.get("leadId") is not None:
                     seen_ids.add(l.get("leadId"))
 
         if len(matches) == 1:
-            return {"match": matches[0], "source": "index"}
+            return self._attach_stale_warning(
+                {"match": matches[0], "source": "index"}
+            )
         if len(matches) > 1:
-            return {"candidates": matches, "source": "index"}
+            return self._attach_stale_warning(
+                {"candidates": matches, "source": "index"}
+            )
 
         # Index missed. If the caller disabled the fallback, return now.
         if fallback_pages <= 0:
-            return {"none": True, "source": "index", "scanned": 0}
+            return self._attach_stale_warning(
+                {"none": True, "source": "index", "scanned": 0}
+            )
 
         # Walk the most recently created leads via the API. New contacts
         # land at the top of page 1 because of the default sort.
@@ -1054,13 +1229,32 @@ class LoftyAPI:
                     "phone": (raw.get("phones") or [""])[0],
                     "stage": raw.get("stage", ""),
                     "score": raw.get("score"),
+                    "tags": raw.get("tags") or [],
+                    "segments": raw.get("segments") or [],
                 })
 
         if len(api_matches) == 1:
-            return {"match": api_matches[0], "source": "api"}
+            return self._attach_stale_warning(
+                {"match": api_matches[0], "source": "api"}
+            )
         if len(api_matches) > 1:
-            return {"candidates": api_matches, "source": "api"}
-        return {"none": True, "source": "index+api", "scanned": scanned}
+            return self._attach_stale_warning(
+                {"candidates": api_matches, "source": "api"}
+            )
+        return self._attach_stale_warning(
+            {"none": True, "source": "index+api", "scanned": scanned}
+        )
+
+    def _attach_stale_warning(self, result):
+        """Optionally decorate find_client returns with a stale-index hint.
+
+        Backward compatible: callers that don't read `stale_warning`
+        keep working unchanged. Callers (or Claude) that read it can
+        offer the user a refresh without the user touching a terminal.
+        """
+        if self._index_stale_info:
+            result["stale_warning"] = self._index_stale_info
+        return result
 
     def _client_dict_from_index(self, lead_id):
         """Return the slim client dict for a single lead_id.

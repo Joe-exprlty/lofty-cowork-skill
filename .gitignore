@@ -31,6 +31,10 @@ venv/
 
 # Claude Cowork session artifacts
 data/leads_index.json
+data/.refresh-state.json
+data/.refresh-log.jsonl
+data/.kit-history.jsonl
+data/.tag-log.jsonl
 
 # Build artifacts (the .skill file is a release asset, not a source file)
 *.skill
