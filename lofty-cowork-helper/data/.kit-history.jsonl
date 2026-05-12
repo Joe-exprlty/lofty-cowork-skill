@@ -1,0 +1,1 @@
+{"ts": "2026-05-12T13:34:25.732167-07:00", "event": "health_check", "ok": false, "summary": "Something's broken", "lofty_api": "Lofty connected", "leads_index": "Leads index missing. Ask me to refresh it.", "auto_refresh": "Auto-refresh has not run yet"}
