@@ -1,0 +1,68 @@
+# Wrangler config for the leads-index Worker (Tier 4).
+# ------------------------------------------------------
+# Deploys the optional Tier 4 leads index Worker. Lofty webhook list 2
+# (Lead Info: create/update/delete) pushes events here; the Worker keeps
+# a live mirror of the agent's leads in Cloudflare KV; lofty_api.py
+# reads from that mirror when LOFTY_LEADS_INDEX_SOURCE=worker.
+#
+# This Worker runs comfortably on Cloudflare's FREE plan for any
+# realtor-scale CRM. No Workers Paid plan needed. That's Tier 3 only.
+#
+# To deploy from this folder (lofty-cowork-helper/workers/):
+#   1. Set CLOUDFLARE_API_TOKEN in your shell or .env at the repo root.
+#   2. Create the KV namespace (one-time):
+#        npx wrangler kv namespace create LEADS_INDEX
+#      Copy the returned id into the [[kv_namespaces]] block below.
+#   3. Push the three required secrets (one-time each):
+#        echo "$LOFTY_API_KEY" | npx wrangler secret put LOFTY_API_KEY \
+#          -c wrangler.leads-index.toml
+#        # Generate a random WEBHOOK_SECRET. This becomes the path segment
+#        # on /webhook/<secret>; it filters out random POSTs from anyone
+#        # who finds your Worker URL. Anything random and unguessable works.
+#        openssl rand -hex 32 | npx wrangler secret put WEBHOOK_SECRET \
+#          -c wrangler.leads-index.toml
+#        # Generate a random EXPORT_API_KEY. This is the Bearer token the
+#        # Python client uses to call /export, /lead/<id>, /bulk-import.
+#        openssl rand -hex 32 | npx wrangler secret put EXPORT_API_KEY \
+#          -c wrangler.leads-index.toml
+#   4. Deploy:
+#        npx wrangler deploy -c wrangler.leads-index.toml
+#   5. Bootstrap the index from the local file:
+#        python3 scripts/refresh_leads_index.py --push-to-worker
+#   6. Wire Lofty webhook list 2 to the Worker URL:
+#        python3 scripts/lofty_api.py webhook-create 2 \
+#          https://<your-worker>.workers.dev/webhook/<WEBHOOK_SECRET>
+#   7. Set LOFTY_LEADS_INDEX_SOURCE=worker and LEADS_INDEX_WORKER_URL=
+#      https://<your-worker>.workers.dev in your .env. lofty_api.py now
+#      reads from the live KV index instead of the local file.
+#
+# Verify the deploy:
+#   curl https://<your-worker>.workers.dev/                       # health
+#   curl https://<your-worker>.workers.dev/stats                  # counts
+#   curl -H "Authorization: Bearer $EXPORT_API_KEY" \
+#        https://<your-worker>.workers.dev/export | head          # auth check
+
+name = "leads-index"
+main = "leads_index_worker.js"
+compatibility_date = "2026-04-22"
+
+# Silences wrangler 4.x default warnings and closes the preview-URLs
+# attack surface (publicly accessible Worker versions holding
+# LOFTY_API_KEY, WEBHOOK_SECRET, and EXPORT_API_KEY).
+workers_dev = true
+preview_urls = false
+
+# KV binding for the leads index. Replace the id with the namespace you
+# created in step 2 above. Binding name MUST be LEADS; the Worker code
+# reads from env.LEADS.
+[[kv_namespaces]]
+binding = "LEADS"
+id = "REPLACE_WITH_YOUR_LEADS_INDEX_KV_ID"
+
+# NOTE: no [[durable_objects.bindings]] and no [[migrations]] blocks.
+# The leads-index Worker is a plain HTTP + KV Worker; it runs on the
+# free tier with no Durable Objects.
+
+# NOTE: no [vars] block. All three sensitive values (LOFTY_API_KEY,
+# WEBHOOK_SECRET, EXPORT_API_KEY) are pushed via wrangler secret put
+# above so they live as Cloudflare Secrets, not plain env vars in toml.
