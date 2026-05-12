@@ -1,6 +1,6 @@
 ---
 name: lofty-cowork-helper
-description: Connect Claude to the Lofty CRM API for real estate agents and VAs. Use whenever the user mentions Lofty, Lofty CRM, Lofty API, connecting Cowork to Lofty, finding a lead, logging a note, scheduling a showing, post-showing SMS, leads index, jotform feedback, error 200058, or Lofty webhooks. Trigger on setup phrases ("set up Lofty," "connect my CRM," "I just installed this"), on Tier 2 deploy phrases ("set up Tier 2," "set up post-showing feedback," "deploy the Worker," "deploy the post-showing feedback Worker," "set up the JotForm Worker," "wire up the showing feedback form"), on Tier 3 deploy phrases ("set up Tier 3," "deploy the SMS Worker," "set up showing reminders," "set up post-showing SMS," "wire up the showing-sms Worker"), on showing orchestration phrases ("schedule a showing," "book a showing," "set up a tour," "tour [address] tomorrow," "schedule [client] at [address]"), on workflow questions ("how do I find a lead," "log a showing," "log a note for," "search the MLS," "schedule a showing for"), and on troubleshooting phrases ("Lofty error," "200058," "auth failed," "this Lofty call returned"). Trigger even on casual mentions ("the Lofty thing," "my CRM is Lofty," "in Lofty"). Do NOT trigger for general real estate questions unrelated to Lofty.
+description: Connect Claude to the Lofty CRM API for real estate agents and VAs. Use whenever the user mentions Lofty, Lofty CRM, Lofty API, connecting Cowork to Lofty, finding a lead, logging a note, scheduling a showing, post-showing SMS, leads index, jotform feedback, error 200058, or Lofty webhooks. Trigger on setup phrases ("set up Lofty," "connect my CRM," "I just installed this"), on Tier 2 deploy phrases ("set up Tier 2," "set up post-showing feedback," "deploy the Worker," "deploy the post-showing feedback Worker," "set up the JotForm Worker," "wire up the showing feedback form"), on Tier 3 deploy phrases ("set up Tier 3," "deploy the SMS Worker," "set up showing reminders," "set up post-showing SMS," "wire up the showing-sms Worker"), on Tier 4 deploy phrases ("set up Tier 4," "deploy the leads-index Worker," "set up live leads index," "wire up the leads-index Worker," "turn on the webhook leads index"), on showing orchestration phrases ("schedule a showing," "book a showing," "set up a tour," "tour [address] tomorrow," "schedule [client] at [address]"), on workflow questions ("how do I find a lead," "log a showing," "log a note for," "search the MLS," "schedule a showing for"), and on troubleshooting phrases ("Lofty error," "200058," "auth failed," "this Lofty call returned"). Trigger even on casual mentions ("the Lofty thing," "my CRM is Lofty," "in Lofty"). Do NOT trigger for general real estate questions unrelated to Lofty.
 ---
 
 # Lofty CRM Helper for Claude Cowork
@@ -16,6 +16,7 @@ When the skill activates, decide which path the user is on:
 - **A specific Lofty task in mind** ("find a lead," "log a note," "schedule a showing") → use the "Common workflows" section, which points at `references/workflows.md` for full recipes.
 - **A Tier 2 deploy in mind** ("set up Tier 2," "deploy the Worker," "set up post-showing feedback") → jump to "Tier 2 setup: post-showing feedback Worker" below.
 - **A Tier 3 deploy in mind** ("set up Tier 3," "deploy the SMS Worker," "set up showing reminders") → jump to "Tier 3 setup: showing-reminder SMS Worker" below.
+- **A Tier 4 deploy in mind** ("set up Tier 4," "deploy the leads-index Worker," "set up live leads index") → jump to "Tier 4 setup: leads-index Worker" below. Tier 4 is optional and runs on the Cloudflare free plan.
 - **A showing to schedule end-to-end** ("schedule a showing," "book a tour," "set up [client] at [address] at [time]") → hand off to the `skills/schedule-showing/` sub-skill, which drives the multi-stop orchestration (resolve client, prepare each stop, calendar event, showing-log note, verify SMS queue). Requires `prepare_showing` helpers in the starter (v1.3.0+) and a calendar backend matching `CALENDAR_PROVIDER` in `CLAUDE.md`. The Tier 3 SMS Worker is optional; the orchestration works without it but skips Step 7.
 - **An error or unexpected behavior** → use "When something behaves unexpectedly" below, which points at `references/quirks.md` and the troubleshooting decision tree in `references/full-guide.md`.
 
@@ -286,7 +287,60 @@ If the Cloudflare MCP is not connected and the user does not want to install it,
 
 - Add `SHOWING_SMS_WORKER_URL=<deployed-url>` to `.env` so `prepare_showing`, `list_pending_showings`, and `cancel_showing` in `lofty_api.py` know where to POST.
 - Tell the user what they just unlocked: `prepare_showing(lead_id=...)` from Python now schedules the post-showing SMS at exact precision (within a few seconds of the showing start time), `api.list_pending_showings(lead_id)` lists what is queued, and `api.cancel_showing(lead_id, full_address)` cancels both the KV row and the DO alarm.
-- Tier 3 polish (the leads-index and short-links Workers) is opt-in and ships in v1.7.x or later. Don't bundle it with Tier 3 itself.
+- The leads-index Worker (Tier 4) is a separate opt-in deploy that runs on the Cloudflare free plan. Don't bundle it with Tier 3. Route Tier 4 requests to the "Tier 4 setup" section below.
+
+---
+
+## Tier 4 setup: leads-index Worker (free tier, opt-in)
+
+Trigger this section when the user says any of:
+
+- "set up Tier 4"
+- "deploy the leads-index Worker"
+- "set up live leads index"
+- "wire up the leads-index Worker"
+- "turn on the webhook leads index"
+- any close paraphrase referencing Tier 4, the leads-index Worker, or the webhook-fed KV mirror of Lofty leads
+
+Tier 4 stands up one Cloudflare Worker (`leads-index`) and one KV namespace (`LEADS_INDEX`) that keeps a live mirror of the user's Lofty leads. Lofty webhook list 2 feeds the Worker; `lofty_api.py` reads from the mirror when `LOFTY_LEADS_INDEX_SOURCE=worker` is set. **No Workers Paid plan needed.** The full deploy runbook lives in the "Tier 4 setup" section of `references/workers_setup.md`. This section just routes the user to the right walkthrough in that file.
+
+### Step 1: Confirm prereqs (silent)
+
+Before picking a mode, check:
+
+- Tier 2 is already deployed. Tier 4 reuses the same `LOFTY_API_KEY` secret and the same Cloudflare account. If Tier 2 is not done, route them to "Tier 2 setup" above first. (Tier 3 is NOT a prereq; Tier 4 can run on a free Cloudflare account that skipped Tier 3.)
+- `.env` has `LOFTY_API_KEY` (Tier 1 finished) and `CLOUDFLARE_API_TOKEN` (Tier 2 finished).
+- `node --version` and `npx wrangler --version` both return versions.
+- Cloudflare MCP connected. Easy Mode uses it to verify the account and list existing Workers.
+- The user's Lofty plan includes webhook access. Webhook list 2 is on the standard plan; the user can confirm at Lofty Settings → API → Webhooks. If webhooks are unavailable on their plan, Tier 4 cannot be deployed.
+- `python3 scripts/refresh_leads_index.py` runs cleanly end-to-end against the user's Lofty account. The resulting `data/leads_index.json` is the bootstrap payload for the Worker. If this script errors, fix that before deploying.
+
+### Step 2: Ask which mode
+
+Use the AskUserQuestion tool. Two options:
+
+- **Easy Mode (recommended).** Claude creates the KV namespace via Cloudflare MCP or wrangler, generates random values for `WEBHOOK_SECRET` and `EXPORT_API_KEY`, pushes all three secrets to the new Worker, deploys, runs a health check, runs the bootstrap import (`refresh_leads_index.py --push-to-worker`), wires Lofty webhook list 2 to the Worker URL, and writes the three new `.env` vars. About 6 minutes. The user sees the lead count tick up on `/stats` after the first webhook event.
+- **Power User Mode.** The user runs the shell commands themselves following the "Power User Mode walkthrough (Tier 4)" in `references/workers_setup.md`. About 12 minutes. Useful for users who want to see the wrangler interactive prompts firsthand or who do not have the Cloudflare MCP.
+
+If the Cloudflare MCP is not connected and the user does not want to install it, default to Power User Mode without asking.
+
+### Step 3: Run the chosen path
+
+- **Easy Mode:** follow steps 1 through 9 of the "Easy Mode walkthrough (Tier 4)" in `references/workers_setup.md` verbatim. The bootstrap import (step 6) is the canonical confirmation that the Worker accepts auth and writes KV correctly. After step 9, hand off in one line: "Tier 4 is live. Any new lead in Lofty appears in find_client within 1-5 minutes without a manual refresh."
+- **Power User Mode:** point the user at the "Power User Mode walkthrough (Tier 4)" section of `references/workers_setup.md`. As they work through each numbered step, surface the relevant snippet, answer their questions inline, and read back any error output to diagnose. Don't run their commands for them.
+
+### When something fails
+
+1. Report the exact error in plain English.
+2. Match it against the "Common errors (Tier 4 specific)" table in `references/workers_setup.md`. The top three are: `unauthorized` on `/export` (Bearer header missing or wrong scheme; this Worker uses Bearer, not the Lofty-style `token`), `forbidden` on `/webhook/<secret>` (path secret does not match `WEBHOOK_SECRET`), and `eventCount` not ticking up (webhook never registered with Lofty, or registered with a typo in the secret path).
+3. Offer to roll back the partial deploy using the "Roll back" section. ONLY roll back with explicit user consent.
+4. If after two attempts the same step still fails, stop and surface `github.com/Joe-exprlty/lofty-cowork-skill`.
+
+### After a successful deploy
+
+- Confirm the three new `.env` vars landed: `LOFTY_LEADS_INDEX_SOURCE=worker`, `LEADS_INDEX_WORKER_URL=https://<your-worker>.workers.dev`, `LEADS_INDEX_EXPORT_API_KEY=<the EXPORT_API_KEY>`. Without all three, `lofty_api.py` falls back to the local file.
+- Tell the user what they just unlocked: `find_client` and `get_recent_visits_from_index` now read from the live KV mirror; new leads in Lofty show up within 1-5 minutes; `/stats` exposes how many webhook events were no-ops (saved KV writes) vs stage-excluded vs real upserts.
+- The short-links Worker is the only remaining opt-in Worker on the roadmap and is candidate-for-cut. Don't proactively offer it.
 
 ---
 
@@ -357,7 +411,8 @@ The v1.2.0 starter covers leads, notes, activities, MLS search, tasks, email, an
 - Building a leads index for real name search across the full CRM
 - Deploying the post-showing feedback Worker (`jotform-to-lofty` + D1) - see "Tier 2 setup: post-showing feedback Worker" above for the full picker; `references/workers_setup.md` has the deploy walkthrough
 - Deploying the showing-reminder SMS Worker (`showing-sms`, Durable Object alarms) - see "Tier 3 setup: showing-reminder SMS Worker" above for the full picker; `references/workers_setup.md` Tier 3 section has the deploy walkthrough. Requires Cloudflare Workers Paid ($5/mo).
-- Other Cloudflare Workers (leads-index, short-links) ship in v1.7.x or later
+- Deploying the leads-index Worker (`leads-index`, webhook-fed KV mirror) - see "Tier 4 setup: leads-index Worker" above for the full picker; `references/workers_setup.md` Tier 4 section has the deploy walkthrough. Runs on the Cloudflare free plan.
+- The short-links Worker is the remaining opt-in Worker; candidate-for-cut, no shipping date set.
 - Subscribing to webhooks for live updates
 
 Each addition has a pattern in the full guide. Use the same `_request` plumbing the starter client provides; do not reinvent it.
@@ -385,14 +440,17 @@ Each addition has a pattern in the full guide. Use the same `_request` plumbing 
 - `scripts/refresh_leads_index.py` - rebuild `data/leads_index.json` for the file-fallback lead lookup
 - `scripts/test_worker_parsers.mjs` - smoke test for the Tier 2 Worker's submission parser; run with `node scripts/test_worker_parsers.mjs`
 - `scripts/test_showing_sms_worker.mjs` - Layer 1 smoke test for the Tier 3 SMS Worker (36 assertions covering auth, KV key shape, request validation, queue entry build, SMS body format); run with `node scripts/test_showing_sms_worker.mjs`
+- `scripts/test_leads_index_worker.mjs` - Layer 1 smoke test for the Tier 4 leads-index Worker (67 assertions covering Bearer auth, lead/event extraction across webhook shapes, lead normalization, content-diff field comparison, array equality, exclusion-set sanity); run with `node scripts/test_leads_index_worker.mjs`
 - `workers/jotform_to_lofty_worker.js` - the Tier 2 Worker source; deploys to Cloudflare via wrangler
 - `workers/wrangler.jotform.toml` - wrangler config template for the Tier 2 Worker (placeholders get filled in at deploy time)
 - `workers/showing_sms_worker.js` - the Tier 3 Worker source; per-showing Durable Object alarms; requires Workers Paid
 - `workers/wrangler.showing-sms.toml` - wrangler config template for the Tier 3 Worker (KV id and OWNER_FIRST_NAME get filled in at deploy time)
+- `workers/leads_index_worker.js` - the Tier 4 Worker source; webhook-fed KV mirror of Lofty leads; free tier
+- `workers/wrangler.leads-index.toml` - wrangler config template for the Tier 4 Worker (KV id gets filled in at deploy time; three secrets pushed via `wrangler secret put`)
 - `workers/migrations/001_showing_feedback.sql` - D1 schema for the `showing_feedback` table; idempotent
 - `references/full-guide.md` - comprehensive setup, learning, and best practices guide
 - `references/quirks.md` - full quirks list with workarounds
 - `references/workflows.md` - step-by-step recipes for common tasks
 - `references/extending.md` - how to add capability beyond the starter
 - `references/calendar_routing.md` - which calendar provider to call based on the agent's setup choice
-- `references/workers_setup.md` - Tier 2 + Tier 3 deploy runbook with Easy Mode and Power User Mode walkthroughs for both tiers
+- `references/workers_setup.md` - Tier 2 + Tier 3 + Tier 4 deploy runbook with Easy Mode and Power User Mode walkthroughs for each tier

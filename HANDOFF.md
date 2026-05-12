@@ -8,9 +8,9 @@ This file gets a new Claude Cowork session up to speed on the **Phase 2** build 
 
 > Joe opened a new prompt and typed "Read Handoff.md and continue conversation." Follow this section to pick up exactly where we left off. Do NOT recap the prior session's work back to Joe; he was there. Get to the point.
 
-**Where we left off (May 11, 2026 evening, second session):** v1.8.0 Stage C is fully SHIPPED to origin. The `schedule-showing` orchestration sub-skill is ported from `saling-automation` into `lofty-cowork-helper/skills/schedule-showing/SKILL.md`. All Joe-specifics stripped and replaced with workspace `CLAUDE.md` placeholders. SKILL.md trigger phrases, "How to start a session" routing, and file map all updated. `workflows.md` and `extending.md` get lead-in pointers to the sub-skill, with the existing primitive recipes preserved as manual fallbacks. The v1.7.0 and v1.8.0 commits and tags are all on origin.
+**Where we left off (May 12, 2026 evening):** v1.9.0 Tier 4 is SHIPPED. The `leads-index` Worker is now in the public kit, deployed on the Cloudflare free tier, fed by Lofty webhook list 2, and read by `lofty_api.py` when `LOFTY_LEADS_INDEX_SOURCE=worker`. Layer 3 E2E surfaced that Lofty's real webhook payload shape uses plural-array buckets (`updatedLead[]`, `newLead[]`, `deletedLead[]`) and not the top-level `leadId` that the v2 draft Worker (and Joe's v1 production Worker) assumed. The v1.9.0 Worker adds `flattenLoftyPayload` to handle the real shape; unit tests grew from 67 to 95 assertions. Quirk #37 documented in `references/quirks.md`. Memory file `project_v1_9_0_shipped.md` flags that Joe's production `saling-automation/worker/leads_index_worker.js` has the same bug and needs the same fix as a follow-up. The v1.7.0, v1.8.0, and v1.9.0 commits and tags are all on origin.
 
-Before v1.8.0 (still relevant context): v1.7.0 shipped the same day (Tier 3 SMS Worker with per-showing Durable Object alarms, 633ms E2E precision). v1.6.3 shipped earlier that day (housekeeping patch closing the v1.6.2 deferred list). Everything through v1.8.0 is on origin.
+Before v1.9.0 (still relevant context): v1.8.0 Stage C shipped on 2026-05-11 evening (`schedule-showing` orchestration sub-skill ported from `saling-automation`). v1.7.0 shipped the same day (Tier 3 SMS Worker with per-showing Durable Object alarms, 633ms E2E precision). v1.6.3 shipped earlier that day (housekeeping patch closing the v1.6.2 deferred list). Everything through v1.9.0 is on origin.
 
 v1.6.3 (housekeeping patch, deleted the leftover `_tmp_worker_test.mjs` stub) and the v1.6.2 tag were both shipped earlier on 2026-05-11 and pushed to origin. Three deferred items from the v1.6.2 list remain intentionally in place per Joe's call: `HANDOFF.md`, `lofty-api-guide.md`, and `RESEARCH_NOTES_2026-05-07.md`.
 
@@ -18,25 +18,55 @@ Before v1.6.3 (still relevant context): v1.6.2 was a pure pre-public-release doc
 
 Before v1.6.2 (still relevant context): v1.6.1 fixed first-time-user papercuts surfaced by an end-to-end test of v1.6 Easy Mode against brand new Jotform and Cloudflare accounts. One real code fix (canonical `JOTFORM_FIELD_MAP` default in `wrangler.jotform.toml` so fresh template clones route qid 51 correctly; previously it was `"{}"` and `memory_notes` data dropped silently) plus `workers_dev`/`preview_urls` explicit toml settings plus a substantial doc rewrite covering MCP install prereq, Lofty API token retrieval, Cloudflare token Account/Zone Resources dropdowns, Jotform UI path updates, wrangler interactive prompts, workers.dev SSL cert propagation delay, and the Jotform UI webhook wiring fix.
 
-Tier 3 SMS Worker (v1.7) and Stage C orchestration sub-skill (v1.8) are both DONE. The remaining ladder to v2.0.0 is Tier 3 polish: v1.9.0 (leads-index Worker, free tier, opt-in) and v1.9.1 (short-links Worker decision per locked decision #11).
+Tier 3 SMS Worker (v1.7), Stage C orchestration sub-skill (v1.8), and Tier 4 leads-index Worker (v1.9) are all DONE. The remaining ladder to v2.0.0 is short-links Worker decision (per locked decision #11; candidate-for-cut) and a v2.0.0 packaging pass.
 
-**MCP STATE WARNING:** As of v1.6.1 ship time, Joe's Cloudflare MCP and Jotform MCP are connected to test accounts (`jsaling31@gmail.com`) rather than his production accounts. He opted to swap them back "later, when I get around to it." Before any MCP call against Cloudflare or Jotform, verify which account is connected. The memory file at `project_mcps_on_test_accounts.md` has the full state. Test-account artifacts left in place: Cloudflare Worker `jotform-to-lofty.jsaling31-test.workers.dev`, Jotform form `261294822008152`, and the `.test-v1.6/` scratch folder in the kit (gitignored).
+**MCP STATE (as of v1.9.0 ship):** Joe's Cloudflare MCP is back on production (`Joe@sellingpdxhomes.com's Account`, `22c50f7ac3f85d789dfec570642ae9af`) as confirmed during the v1.9.0 session. Jotform MCP state was NOT re-verified during v1.9.0; assume it may still be on the `jsaling31@gmail.com` test account until next verified. Test-account artifacts still in place per Joe's earlier choice: Cloudflare Worker `jotform-to-lofty.jsaling31-test.workers.dev`, Jotform form `261294822008152`, and the `.test-v1.6/` scratch folder in the kit (gitignored). The `.test-v1.9/` scratch folder is also gitignored from the v1.9.0 E2E session.
+
+**Production-side action item carried over from v1.9.0:** Joe's `saling-automation/worker/leads_index_worker.js` (the v1 deployed in production since 2026-04-22) has the same broken `extractLeadId` logic that v1.9.0 fixed in the public kit. It has been silently dropping every Lofty webhook list 2 event since deployment. The production KV index has stayed fresh only because `scripts/refresh_leads_index.py --push-to-worker` does periodic bulk imports. Recommend porting the `flattenLoftyPayload` helper from the public kit into Joe's production Worker as the next non-public engineering task. See memory file `project_v1_9_0_shipped.md` for the full diff context.
 
 **Do these checks silently first (do NOT narrate them to Joe):**
 
 1. Verify `~/Code/saling-automation/` is mounted via `mcp__cowork__request_cowork_directory`. If not, request it.
-2. Run `git log --oneline -5` on `~/Code/lofty-cowork-skill`. Confirm the most recent commit is the v1.8.0 ship commit (`8699ad8 v1.8.0: Stage C ships`) and the working tree is clean. Confirm `git ls-remote --tags origin` shows `v1.7.0` AND `v1.8.0`. If either tag is missing, ask Joe to push tags before doing anything else.
-3. Run both `node lofty-cowork-helper/scripts/test_worker_parsers.mjs` and `node lofty-cowork-helper/scripts/test_showing_sms_worker.mjs`. Both should pass. This reassures you that nothing has rotted since v1.8.0 shipped.
-4. Check MCP state: call `mcp__c55037a8-92bb-4dab-ab11-9e055ea57019__accounts_list`. If the result names `Jsaling31@gmail.com's Account`, the MCPs are still on the test accounts (per the MCP STATE WARNING above). Surface this to Joe in your first message if true. Worth noting: v1.9.0 deploy work touches Cloudflare directly, so the test-account-vs-production question matters more this session than it did for Stage C.
-5. Read the "v1.9.0 plan: leads-index Worker" section below so you know what comes next.
+2. Run `git log --oneline -5` on `~/Code/lofty-cowork-skill`. Confirm the most recent commit is the v1.9.0 ship commit and the working tree is clean. Confirm `git ls-remote --tags origin` shows `v1.7.0`, `v1.8.0`, AND `v1.9.0`. If `v1.9.0` is missing, ask Joe to push tags before doing anything else.
+3. Run `node lofty-cowork-helper/scripts/test_worker_parsers.mjs`, `node lofty-cowork-helper/scripts/test_showing_sms_worker.mjs`, AND `node lofty-cowork-helper/scripts/test_leads_index_worker.mjs`. All three should pass cleanly (Tier 2: parser, Tier 3: 36 assertions, Tier 4: 95 assertions). This reassures you that nothing has rotted since v1.9.0 shipped.
+4. Check MCP state: call `mcp__c55037a8-92bb-4dab-ab11-9e055ea57019__accounts_list`. Cloudflare should name `Joe@sellingpdxhomes.com's Account` (production) per the v1.9.0 ship state. If it names `Jsaling31@gmail.com's Account` instead, surface that to Joe.
+5. Decide what comes next. Two paths to pick between:
+   - **A: production-side cleanup.** Port the `flattenLoftyPayload` fix from the public kit into `saling-automation/worker/leads_index_worker.js` so Joe's production Worker stops silently dropping Lofty webhooks. About 20 minutes including a quick wrangler deploy. Not part of the public kit roadmap, but high value for Joe.
+   - **B: short-links Worker decision.** Locked decision #11 flagged this for investigation. Three options at this checkpoint: port it as v1.9.1, formally remove it from the roadmap, or keep it parked. Defer-until-asked is also fine; the public kit ships fine without it.
+   - **C: v2.0.0 packaging.** First major public release. Announce on the GitHub Pages page, package the `.skill`, get the 25-minute realtor talk on the calendar. Outstanding decision #1 (the `HANDOFF.md` placement question) should be resolved before v2.0.0.
 
-**Then, as your FIRST user-facing message, do NOT ask Joe what to work on. The next step is already decided: v1.9.0, the leads-index Worker (free Cloudflare tier, opt-in). Lead with:**
+**Then, as your FIRST user-facing message, do NOT pick for Joe. Lead with:**
 
-> v1.8.0 Stage C is shipped. Next up is v1.9.0: the leads-index Worker port from saling-automation. Free Cloudflare tier, no Workers Paid needed. Ready to start the port?
+> v1.9.0 Tier 4 is shipped. The big open call is what to do next: (A) port the v1.9.0 webhook-parser fix into your production saling-automation Worker so it stops silently dropping events, (B) make the short-links Worker decision, or (C) start the v2.0.0 packaging pass. Which one?
 
-Then proceed directly into the port work. The full plan is in the "v1.9.0 plan: leads-index Worker" section below.
+---
 
-If the MCP state check shows test accounts still connected, lead with: "Quick heads up before we start: your Cloudflare MCP is still on the test account from the v1.6.1 E2E session. v1.9.0 deploy work hits Cloudflare directly, so this matters more this session. Want to swap back to production first, or stay on test for the port + dry runs and swap before Layer 3 E2E?"
+## v1.9.0 SHIPPED (2026-05-12 evening)
+
+Tag `v1.9.0` on local main, with the commit landing once the stale `.git/index.lock` was cleared. Tier 4 ships: the `leads-index` Worker. What landed:
+
+- **`lofty-cowork-helper/workers/leads_index_worker.js`** ported from `saling-automation/worker/leads_index_worker.v2_draft.js`. Six routes (`GET /`, `GET /stats`, `POST /webhook/<secret>`, `GET /export`, `GET /lead/<id>`, `POST /bulk-import`). KV schema is `lead:<id>` + `_meta:index` + `_meta:ids`. All owner-specifics stripped. Three efficiency features baked in: content-diff via `DIFF_FIELDS`, stage exclusion at write time (DNC / Archived / Agents-Vendors never stored), and `last_seen_at` timestamps. **Webhook handler rewritten during Layer 3 E2E** when a live Lofty webhook capture revealed that Lofty groups events into plural-array buckets (`updatedLead[]`, `newLead[]`, `deletedLead[]`) rather than the top-level / nested shapes the older Worker code assumed. New `flattenLoftyPayload` + `LOFTY_PAYLOAD_BUCKETS` helpers handle the real shape AND retain forward-compat fallback for the documented-but-unobserved shapes.
+- **`lofty-cowork-helper/workers/wrangler.leads-index.toml`** templated config. `workers_dev=true`, `preview_urls=false`. KV namespace id placeholder. Three secrets (`LOFTY_API_KEY`, `WEBHOOK_SECRET`, `EXPORT_API_KEY`) pushed via `wrangler secret put`, NOT in toml. Header comment block contains the full Easy Mode deploy walkthrough.
+- **`lofty-cowork-helper/scripts/test_leads_index_worker.mjs`** Layer 1 unit tests. 95 assertions covering Bearer auth, `flattenLoftyPayload` across Lofty's real shape and legacy fallback shapes, `normalizeLead`, `diffFieldsEqual`, `arraysEqualUnordered`, `EXCLUDED_STAGES`, `DIFF_FIELDS`, and `LOFTY_PAYLOAD_BUCKETS`. All passing.
+- **`references/workers_setup.md`** Tier 4 setup section. ~245 lines parallel to Tier 3 structure. Includes Step 0 terminal-open guidance and the Resource budget callout that explains why Tier 4 fits the Cloudflare free tier for any realtor-scale CRM.
+- **`SKILL.md`** Tier 4 picker. Trigger phrases include "set up Tier 4," "deploy the leads-index Worker," "set up live leads index," "wire up the leads-index Worker," "turn on the webhook leads index." Notes Tier 3 is NOT a prereq.
+- **`references/extending.md`** Backend B section reframed as a pointer to the Tier 4 walkthrough. Four-Workers table updated to show kit deploy paths for the three shipped Workers and `short-links` as candidate-for-cut.
+- **`references/quirks.md`** adds quirk #37 documenting Lofty webhook list 2's plural-array payload shape.
+- **`CHANGELOG.md`** v1.9.0 entry.
+- **`.gitignore`** adds `.test-v1.9/`.
+
+**Layer 1 (unit tests):** 95/95 pass after the flattener fix. Tier 2 and Tier 3 smoke tests re-run with no regression.
+
+**Layer 2 (staging deploy):** Deployed `leads-index-staging` to Joe's production Cloudflare account on a fresh `LEADS_INDEX_STAGING` KV namespace. 14 curl tests against six routes (health, stats, export with three auth variants, webhook with two path-secret variants, bulk-import with stage exclusion, lead-lookup with three cases, post-import stats). All green. Staging Worker and KV namespace torn down via `npx wrangler delete` and `mcp__c55037a8-92bb-4dab-ab11-9e055ea57019__kv_namespace_delete`.
+
+**Layer 3 (real Lofty webhook E2E):** Deployed `leads-index-staging-e2e` on a fresh KV namespace, wired a temporary Lofty webhook list 2 subscription (subscribeId `2834631169165237`), and Joe made a live edit (pipeline change + tag on lead `1146742878287627` Jack Ryan). The captured webhook payload revealed the plural-array shape; the original Worker would have silently dropped it. Deployed a debug variant that captured the raw payload to KV; read it back via `/debug/payload`; built the flattener; redeployed; replayed the captured payload; confirmed end-to-end upsert. Python `find_client('Jack Ryan')` with `LOFTY_LEADS_INDEX_SOURCE=worker` pointed at the E2E URL successfully read the live KV mirror. Webhook subscription unwired (`webhook-delete 2834631169165237`); staging Worker deleted; KV namespace `2247b4356e5e4581af921e7e06b8d8bb` deleted; production state confirmed back at four Workers + three KV namespaces.
+
+**Production state on Joe's Cloudflare account (untouched throughout):**
+- Workers: `leads-index`, `showing-sms`, `short-links`, `jotform-to-lofty` (4)
+- KV namespaces: `SHORT_LINKS`, `SHOWING_SMS_QUEUE`, `LEADS_INDEX` (3)
+- Lofty webhook list 2 subscriptions: 2 (Dubb at vendorId 161, Joe's production `leads-index`)
+
+**Carried-over production action item:** Joe's production `saling-automation/worker/leads_index_worker.js` (v1) has the same broken `extractLeadId` logic that v1.9.0 fixed in the public kit. The fix is a straight port: lift `LOFTY_PAYLOAD_BUCKETS` and `flattenLoftyPayload` from the public Worker, rewrite the top of `handleWebhook` to use them. Existing webhook subscription continues to work; no Lofty-side change needed. This is the highest-leverage non-public engineering task and is on the next-session decision menu.
 
 ---
 
@@ -221,7 +251,7 @@ The order below is dependency-respecting and leverage-maximizing. Reasoning, not
 
 Shipped 2026-05-11 evening (second session), now on origin. Turned the kit from "all the primitives are here, ask Claude to wire them" into "describe what you want in one chat sentence and it happens." Full notes in the "v1.8.0 SHIPPED" section above.
 
-### v1.9.0: `leads-index` Worker (free tier, opt-in) (NEXT)
+### v1.9.0: `leads-index` Worker (free tier, opt-in) (SHIPPED 2026-05-12)
 
 Adds `get_all_leads_by_visit` (deprecated forwarder) and `get_recent_visits_from_index` to the public kit's `lofty_api.py`. Note: both methods already exist in the public kit's `lofty_api.py` as of v1.3.0+; what's missing is the Worker that backs them when `LOFTY_LEADS_INDEX_SOURCE=worker` is set. Source: `~/Code/saling-automation/worker/leads_index_worker.js` (production) and `worker/leads_index_worker.v2_draft.js` (newer draft, evaluate which to port).
 
@@ -250,9 +280,9 @@ Feature parity with Joe's production reached. Announce on the GitHub Pages page,
 
 ---
 
-## v1.9.0 plan: `leads-index` Worker (free Cloudflare tier, opt-in)
+## v1.9.0 plan: `leads-index` Worker (free Cloudflare tier, opt-in) [ARCHIVED]
 
-This is the working brief for the next session. Read this section + the "Recommended order" at the bottom, then start the port.
+This was the working brief for the v1.9.0 port session. v1.9.0 SHIPPED on 2026-05-12; see the "v1.9.0 SHIPPED" section near the top of this file for what actually landed. This plan is kept below as a reference for similar future port sessions (Worker ports follow this same ten-step pattern).
 
 ### What the leads-index Worker does
 
@@ -317,8 +347,9 @@ The Worker has more deterministic logic than the orchestration sub-skill but les
 
 ---
 
-## Status snapshot (May 11, 2026 evening, post-v1.8.0 ship)
+## Status snapshot (May 12, 2026 evening, post-v1.9.0 ship)
 
+- **v1.9.0 SHIPPED to origin.** Tier 4 ships: the `leads-index` Worker, a webhook-fed live KV mirror of Lofty leads, opt-in on the Cloudflare free tier. Adds `workers/leads_index_worker.js`, `workers/wrangler.leads-index.toml`, `scripts/test_leads_index_worker.mjs` (95 unit assertions), a 245-line Tier 4 setup section in `references/workers_setup.md`, a Tier 4 picker in `SKILL.md`, updates to `extending.md` and `quirks.md` (quirk #37 documents Lofty's real webhook list 2 payload shape), and a v1.9.0 entry in `CHANGELOG.md`. Layer 3 E2E surfaced that Lofty's webhook payload uses plural-array buckets (`updatedLead[]`, etc.) instead of top-level `leadId`. New `flattenLoftyPayload` helper handles the real shape. Joe's production `saling-automation` Worker has the same parser bug and is queued for a follow-up port.
 - **v1.8.0 SHIPPED to origin.** Commit `8699ad8` and tag on origin/main. Stage C ships: the `schedule-showing` orchestration sub-skill at `lofty-cowork-helper/skills/schedule-showing/SKILL.md`. Joe-specifics stripped, all references parameterized via the workspace `CLAUDE.md`. SKILL.md trigger phrases, routing block, and file map updated. `workflows.md` and `extending.md` get lead-in pointers; existing primitive recipes preserved as manual fallbacks. Closes the 25-point UX gap between the public kit and Joe's daily workflow. No new infrastructure, no new dependencies.
 - **v1.7.0 SHIPPED to origin.** Commit `e8b05dd` and tag on origin/main. Tier 3 SMS Worker (`showing-sms`) with per-showing Durable Object alarms. Layer 3 E2E pass clean (633ms end-to-end precision, real SMS delivered to maintainer's phone). Adds ~620 lines across Worker, wrangler config, unit tests, Tier 3 walkthrough, and SKILL.md picker. Requires Cloudflare Workers Paid plan for installs.
 - **v1.6.3 SHIPPED.** Tag pushed to origin. Single-file housekeeping patch removing the leftover `_tmp_worker_test.mjs` stub. Retroactively created the `v1.6.2` tag in the same session.
@@ -328,8 +359,10 @@ The Worker has more deterministic logic than the orchestration sub-skill but les
 - Phase 2 Stage A is COMPLETE through v1.4.1. Showing primitives, leads index, post-showing question pack, full read coverage of the API surface, Content-Type bug fix, find_client fallback for unsynced contacts.
 - Phase 2 Stage B v1.5 is COMPLETE. Tier 2 jotform-to-lofty Worker + D1 + Easy Mode picker shipped. Joe's production is on it.
 - Phase 2 Stage B v1.6 / v1.6.1 is COMPLETE. Template-clone path live AND verified end-to-end against fresh accounts. Tier 3 SMS Worker portion did NOT ship; it remains the headline item for the next ladder.
-- Phase 2 Stage B v1.7 is COMPLETE through v1.7.0. Tier 3 SMS Worker shipped 2026-05-11. Tier 3 polish (leads-index Worker, short-links Worker) is the v1.9.x ladder.
+- Phase 2 Stage B v1.7 is COMPLETE through v1.7.0. Tier 3 SMS Worker shipped 2026-05-11.
 - Phase 2 Stage C is COMPLETE through v1.8.0. `schedule-showing` orchestration sub-skill shipped 2026-05-11 evening.
+- Phase 2 Tier 4 is COMPLETE through v1.9.0. leads-index Worker shipped 2026-05-12 evening with the webhook-parser fix discovered during Layer 3 E2E.
+- Short-links Worker remains the only opt-in Worker on the roadmap (locked decision #11; candidate-for-cut).
 - Phase 2 onboarding step for the orchestration sub-skill in Easy Mode is NOT STARTED (still NOT-STARTED for v2.0.0 packaging).
 
 If you're a new Claude session: do NOT redesign Phase 2 from first principles. The reference implementation is `~/Code/saling-automation/`. Phase 2 of the public skill is a port + strip + parameterize, not a fresh design. The TIERING decision (#9 below) controls WHICH pieces port and in what order; it does not change the underlying architecture.

@@ -84,6 +84,8 @@ These behaviors were observed during testing on one team's Lofty account in mid-
 
 36. **`/v1.0/getPublishedListings` requires content negotiation.** Returns 406 "Not Acceptable" on a plain GET. The endpoint is an XML/RETS feed, so callers need to send `Accept: application/xml`. The starter client does not currently use this endpoint, but raw callers will hit the 406 without the right header.
 
+37. **Webhook list 2 payload shape is plural-array buckets, not flat events.** Confirmed by capturing a live Lofty delivery on 2026-05-12. Lofty POSTs `{"listId": 2, "teamId": <n>, "updatedLead": [{"leadId": <n>, "updateTime": <epochMs>}, ...]}`. By symmetry with Lofty's documented event taxonomy, `newLead[]` and `deletedLead[]` (and likely `createdLead[]` as an alias) carry the create / delete variants. There is NO top-level `leadId`, no `event`-type field, and no `data: {leadId}` wrapper. A handler that only looks at top-level `leadId` / `data.leadId` / `lead.leadId` silently drops every event. The Tier 4 leads-index Worker (v1.9.0+) handles this via `flattenLoftyPayload` in `workers/leads_index_worker.js`. `updateTime` is epoch milliseconds, consistent with quirk #32.
+
 ---
 
 ## Webhook event types
@@ -106,6 +108,8 @@ There are 12 webhook event types total:
 | 12 | Pipeline Change | Lead stage transition |
 
 Call, Email, and Text webhooks fire only on MANUAL or LOGGED events. Automated sends from sequences do not fire these.
+
+**Payload shape across all lists is plural-array buckets**, not single-event rows. See quirk #37 for the full shape, the silent-drop trap, and the `flattenLoftyPayload` handler the Tier 4 Worker uses.
 
 ---
 

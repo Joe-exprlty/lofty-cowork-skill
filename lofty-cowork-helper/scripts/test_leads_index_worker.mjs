@@ -29,8 +29,9 @@ const src = readFileSync(workerPath, "utf8");
 const wrapper =
   src +
   "\nexport { isAuthorized, extractLeadId, extractEventType, " +
-  "normalizeLead, diffFieldsEqual, arraysEqualUnordered, " +
-  "EXCLUDED_STAGES, DIFF_FIELDS };\n";
+  "flattenLoftyPayload, normalizeLead, diffFieldsEqual, " +
+  "arraysEqualUnordered, EXCLUDED_STAGES, DIFF_FIELDS, " +
+  "LOFTY_PAYLOAD_BUCKETS };\n";
 
 const tmpDir = mkdtempSync(resolve(tmpdir(), "leads-index-test-"));
 const tmpPath = resolve(tmpDir, "wrapped.mjs");
@@ -48,11 +49,13 @@ const {
   isAuthorized,
   extractLeadId,
   extractEventType,
+  flattenLoftyPayload,
   normalizeLead,
   diffFieldsEqual,
   arraysEqualUnordered,
   EXCLUDED_STAGES,
   DIFF_FIELDS,
+  LOFTY_PAYLOAD_BUCKETS,
 } = mod;
 
 // ---------- test runner (matches test_showing_sms_worker.mjs style) ----------
@@ -185,6 +188,122 @@ assert("extractEventType.action-field", extractEventType({ action: "UPDATE" }), 
 assert("extractEventType.nested-data-event", extractEventType({ data: { event: "delete" } }), "delete");
 assert("extractEventType.missing", extractEventType({ leadId: "x" }), null);
 assert("extractEventType.null-input", extractEventType(null), null);
+
+// ══════════════════════════════════════════════════════════
+//  flattenLoftyPayload
+//  ----------------------------------------------------------
+//  Family 1: Lofty's actual list 2 shape, confirmed against a live
+//  Lofty webhook delivery 2026-05-12. leadIds live inside plural
+//  buckets (updatedLead[], newLead[], deletedLead[]). The bucket name
+//  encodes the event type. The previous Worker code only handled the
+//  documented-but-unconfirmed top-level shapes, which is why webhook
+//  events were silently dropped before this fix.
+//
+//  Family 2: the documented-but-unconfirmed shapes that the older
+//  Worker code targeted. Kept here for forward compat and for direct
+//  curl-driven testing.
+// ══════════════════════════════════════════════════════════
+
+console.log("\n--- flattenLoftyPayload (family 1: Lofty's actual list 2 shape) ----------");
+
+const realPayload = {
+  listId: 2,
+  updatedLead: [{ leadId: 1146742878287627, updateTime: 1778568695000 }],
+  teamId: 439263780534081,
+};
+const realFlat = flattenLoftyPayload(realPayload);
+assert("flatten.real.count", realFlat.length, 1);
+assert("flatten.real.leadId", realFlat[0].leadId, 1146742878287627);
+assert("flatten.real.eventType", realFlat[0].eventType, "update");
+
+const twoLeadsPayload = {
+  listId: 2,
+  updatedLead: [
+    { leadId: 111, updateTime: 1 },
+    { leadId: 222, updateTime: 2 },
+  ],
+};
+const twoFlat = flattenLoftyPayload(twoLeadsPayload);
+assert("flatten.two.count", twoFlat.length, 2);
+assert("flatten.two.leadIds", twoFlat.map((e) => e.leadId), [111, 222]);
+assert("flatten.two.eventTypes-all-update", twoFlat.map((e) => e.eventType), ["update", "update"]);
+
+const newLeadPayload = { listId: 2, newLead: [{ leadId: 333 }] };
+const newFlat = flattenLoftyPayload(newLeadPayload);
+assert("flatten.newLead.count", newFlat.length, 1);
+assert("flatten.newLead.eventType", newFlat[0].eventType, "create");
+
+const createdLeadPayload = { listId: 2, createdLead: [{ leadId: 444 }] };
+const createdFlat = flattenLoftyPayload(createdLeadPayload);
+assert("flatten.createdLead-alias.count", createdFlat.length, 1);
+assert("flatten.createdLead-alias.eventType", createdFlat[0].eventType, "create");
+
+const deletedPayload = { listId: 2, deletedLead: [{ leadId: 555 }] };
+const delFlat = flattenLoftyPayload(deletedPayload);
+assert("flatten.deletedLead.count", delFlat.length, 1);
+assert("flatten.deletedLead.eventType", delFlat[0].eventType, "delete");
+
+const mixedPayload = {
+  listId: 2,
+  updatedLead: [{ leadId: 1 }],
+  newLead: [{ leadId: 2 }],
+  deletedLead: [{ leadId: 3 }],
+};
+const mixedFlat = flattenLoftyPayload(mixedPayload);
+assert("flatten.mixed.count", mixedFlat.length, 3);
+assert(
+  "flatten.mixed.tuples",
+  mixedFlat.map((e) => [e.leadId, e.eventType]),
+  [[1, "update"], [2, "create"], [3, "delete"]]
+);
+
+const bucketEntryNoLeadId = { listId: 2, updatedLead: [{ updateTime: 1 }] };
+const noIdFlat = flattenLoftyPayload(bucketEntryNoLeadId);
+assert("flatten.bucket-no-leadId.count", noIdFlat.length, 1);
+assert("flatten.bucket-no-leadId.leadId-null", noIdFlat[0].leadId, null);
+
+console.log("\n--- flattenLoftyPayload (family 2: legacy/forward-compat shapes) ----------");
+
+const legacyArray = [
+  { leadId: 901, event: "update" },
+  { leadId: 902, event: "delete" },
+];
+const legArrFlat = flattenLoftyPayload(legacyArray);
+assert("flatten.legacy-array.count", legArrFlat.length, 2);
+assert("flatten.legacy-array.tuples", legArrFlat.map((e) => [e.leadId, e.eventType]), [[901, "update"], [902, "delete"]]);
+
+const legacySingle = { leadId: 903, eventType: "create" };
+const legSingleFlat = flattenLoftyPayload(legacySingle);
+assert("flatten.legacy-single.count", legSingleFlat.length, 1);
+assert("flatten.legacy-single.tuple", [legSingleFlat[0].leadId, legSingleFlat[0].eventType], [903, "create"]);
+
+const nestedData = { data: { leadId: 904 } };
+const nestedDataFlat = flattenLoftyPayload(nestedData);
+assert("flatten.nested-data.leadId", nestedDataFlat[0].leadId, 904);
+
+const nestedLead = { lead: { leadId: 905 } };
+const nestedLeadFlat = flattenLoftyPayload(nestedLead);
+assert("flatten.nested-lead.leadId", nestedLeadFlat[0].leadId, 905);
+
+assert("flatten.null-input", flattenLoftyPayload(null), []);
+assert("flatten.empty-object", flattenLoftyPayload({}).length, 1);  // falls to family 2, returns one null-leadId entry
+assert("flatten.string-input", flattenLoftyPayload("not an object"), []);
+
+// Bucket family wins over legacy fallback (no double counting).
+const bucketAndLegacy = {
+  listId: 2,
+  updatedLead: [{ leadId: 1000 }],
+  leadId: 9999, // would match family 2 if family 1 didn't short-circuit
+};
+const bothFlat = flattenLoftyPayload(bucketAndLegacy);
+assert("flatten.bucket-wins-over-legacy.count", bothFlat.length, 1);
+assert("flatten.bucket-wins-over-legacy.leadId", bothFlat[0].leadId, 1000);
+
+assert(
+  "LOFTY_PAYLOAD_BUCKETS.names",
+  LOFTY_PAYLOAD_BUCKETS.map((b) => b[0]),
+  ["updatedLead", "newLead", "createdLead", "deletedLead"]
+);
 
 // ══════════════════════════════════════════════════════════
 //  normalizeLead

@@ -224,28 +224,36 @@ async function handleWebhook(request, env, ctx) {
     return jsonResponse({ error: "invalid_json" }, 400);
   }
 
-  // Lofty's webhook payload shape for list 2 covers two known forms:
-  //   A. Rich: { leadId, event: "create"|"update"|"delete", lead: {...} }
-  //   B. Minimal (like list 3): { leadId, updateTime } plus maybe an
-  //      event type. In this case we fetch the lead from the API.
-  // Either way, normalize to { leadId, event } and reconcile.
-  const events = Array.isArray(payload) ? payload : [payload];
+  // Lofty's actual webhook list 2 payload (confirmed against a live Lofty
+  // delivery 2026-05-12) groups lead events into plural-array buckets:
+  //   { "listId": 2, "teamId": <n>,
+  //     "updatedLead": [{ "leadId": <n>, "updateTime": <epochMs> }, ...],
+  //     "newLead":     [{ "leadId": <n>, ... }, ...],
+  //     "deletedLead": [{ "leadId": <n>, ... }, ...] }
+  // There is no top-level event-type field; the bucket name encodes it.
+  //
+  // flattenLoftyPayload also handles the documented-but-not-observed shapes:
+  //   - Array of single events at top level
+  //   - Single event with top-level leadId / data.leadId / lead.leadId
+  // The fallback exists for forward compat with future Lofty schema changes
+  // and to keep this Worker drivable by direct curl during testing.
+  const flattened = flattenLoftyPayload(payload);
   const results = [];
   const metaDeltas = {
-    eventCount_delta: events.length,
+    eventCount_delta: flattened.length,
     skippedNoChange_delta: 0,
     skippedStageExcluded_delta: 0,
     deletedViaStage_delta: 0,
     lastEventAt: nowIso(),
   };
 
-  for (const evt of events) {
-    const leadId = extractLeadId(evt);
+  for (const evt of flattened) {
+    const leadId = evt.leadId;
     if (!leadId) {
       results.push({ skipped: "no_leadId", evt });
       continue;
     }
-    const eventType = extractEventType(evt);
+    const eventType = evt.eventType;
 
     try {
       // Layer 1: action gating. Deletes always process.
@@ -306,7 +314,7 @@ async function handleWebhook(request, env, ctx) {
   }
 
   ctx.waitUntil(updateMeta(env, metaDeltas));
-  return jsonResponse({ received: events.length, results });
+  return jsonResponse({ received: flattened.length, results });
 }
 
 async function handleExport(env) {
@@ -525,9 +533,70 @@ async function updateMeta(env, patch) {
 function extractLeadId(evt) {
   if (!evt || typeof evt !== "object") return null;
   // Covers shapes Lofty might send: flat leadId, nested in data, or a
-  // bare lead object with leadId at top level.
+  // bare lead object with leadId at top level. Used by the fallback
+  // path of flattenLoftyPayload (for direct curl tests and forward
+  // compat with non-bucketed Lofty payloads).
   return evt.leadId || (evt.data && evt.data.leadId) ||
          (evt.lead && evt.lead.leadId) || null;
+}
+
+// Lofty's webhook list 2 buckets, in the order we process them.
+// Each entry maps a bucket name in the payload to the event type that
+// bucket implies. If Lofty adds new buckets in the future, append here.
+const LOFTY_PAYLOAD_BUCKETS = [
+  ["updatedLead", "update"],
+  ["newLead", "create"],
+  ["createdLead", "create"],
+  ["deletedLead", "delete"],
+];
+
+function flattenLoftyPayload(payload) {
+  // Returns an array of { leadId, eventType, raw } tuples extracted from
+  // a Lofty webhook payload. Two payload families are supported:
+  //
+  // 1. Lofty's actual list 2 shape (the one observed in production):
+  //      { "listId": 2, "updatedLead": [{leadId, updateTime}, ...] }
+  //    The bucket name (updatedLead / newLead / deletedLead) encodes the
+  //    event type; each array entry becomes one tuple.
+  //
+  // 2. The shapes the older Worker code anticipated (kept for forward
+  //    compat and direct curl testing):
+  //      [{leadId, event, ...}, ...]                  // array of events
+  //      {leadId, event, ...}                         // single event
+  //      {data: {leadId, ...}} | {lead: {leadId, ...}}// nested
+  //
+  // If the payload matches the first family the second is skipped, so
+  // there is no double-counting on real Lofty deliveries.
+  const out = [];
+  if (!payload || typeof payload !== "object") return out;
+
+  // Family 1: plural-array buckets.
+  for (const [key, eventType] of LOFTY_PAYLOAD_BUCKETS) {
+    const arr = payload[key];
+    if (!Array.isArray(arr)) continue;
+    for (const entry of arr) {
+      const leadId = entry && entry.leadId;
+      if (leadId) {
+        out.push({ leadId, eventType, raw: entry });
+      } else {
+        out.push({ leadId: null, eventType, raw: entry });
+      }
+    }
+  }
+  if (out.length > 0) return out;
+
+  // Family 2: the older anticipated shapes. Useful for unit tests and
+  // for any future Lofty schema change that abandons the buckets.
+  const events = Array.isArray(payload) ? payload : [payload];
+  for (const evt of events) {
+    const leadId = extractLeadId(evt);
+    if (leadId) {
+      out.push({ leadId, eventType: extractEventType(evt), raw: evt });
+    } else {
+      out.push({ leadId: null, eventType: extractEventType(evt), raw: evt });
+    }
+  }
+  return out;
 }
 
 function extractEventType(evt) {

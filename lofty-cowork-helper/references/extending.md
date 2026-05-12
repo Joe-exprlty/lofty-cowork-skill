@@ -32,7 +32,7 @@ The starter ships with most of what a working day needs. As of v1.4.0, almost ev
 
 11. **Webhooks (starter)** - `get_webhooks`, `create_webhook`, `delete_webhook`. Subscribe Lofty to push events to your Workers. Powers the live leads index, post-showing flows, and "notify me when X" automation.
 
-12. **Cloudflare Workers (still optional)** - leads-index, short-links, jotform-to-lofty, showing-sms. The Python in the starter calls them when their URLs are present in `.env` and fails soft when blank.
+12. **Cloudflare Workers (three ship in the kit; the fourth is opt-in roadmap)** - The kit ships templated Workers for `jotform-to-lofty` (v1.5+, Tier 2), `showing-sms` (v1.7+, Tier 3), and `leads-index` (v1.9+, Tier 4). Each has a dedicated setup walkthrough in `workers_setup.md`. The `short-links` Worker is on the roadmap as candidate-for-cut; if you need branded short links before it ships, the sketch in this file's "Short links" section below is enough to roll your own. The Python in the starter calls each Worker when its URL is present in `.env` and fails soft when blank.
 
 Things deliberately left OUT of the starter:
 - `delete_lead` - too dangerous to expose without strict guards. Use Lofty's UI.
@@ -64,9 +64,11 @@ The starter prints a (non-blocking) staleness warning when the file is older tha
 
 ### Backend B: Cloudflare Worker fed by webhook list 2 (live, no refresh)
 
-Deploy a small Cloudflare Worker that subscribes to webhook list 2 (Lead Info events). Every lead create/update/delete posts to the Worker, which patches its KV store. The Worker exposes `/export` that the Python client reads.
+As of v1.9.0 the kit ships this Worker as **Tier 4**. The full deploy runbook lives in `workers_setup.md` Tier 4 section: KV namespace creation, three secret pushes (`LOFTY_API_KEY`, `WEBHOOK_SECRET`, `EXPORT_API_KEY`), wrangler deploy, bulk-import bootstrap, Lofty webhook list 2 wire-up, and the `.env` switch. Free Cloudflare tier; no Workers Paid plan needed.
 
-Sketch of the Worker (JavaScript):
+The Worker subscribes to webhook list 2 (Lead Info events). Every lead create/update/delete fires into the Worker, which fetches the authoritative lead from Lofty and patches its KV store. The Worker exposes `/export` and `/lead/<id>` (both Bearer-authenticated) that the Python client reads when `LOFTY_LEADS_INDEX_SOURCE=worker`. The Worker has three write-side cost controls: content-diff (no-op updates skip the KV write), stage exclusion (DNC / Archived / Agents-Vendors are never stored), and `last_seen_at` timestamps for reconciliation.
+
+Sketch of the Worker's core path, for users who want to understand what the kit deploys:
 
 ```javascript
 export default {
@@ -78,20 +80,20 @@ export default {
       const leadId = String(body.leadId);
       // Fetch the lead from Lofty using env.LOFTY_API_KEY, store in KV
       const lead = await fetchLeadFromLofty(leadId, env);
-      await env.LEADS_KV.put(leadId, JSON.stringify(lead));
+      await env.LEADS.put(`lead:${leadId}`, JSON.stringify(lead));
       return new Response("OK");
     }
     if (url.pathname === "/export") {
       // Bearer auth using env.EXPORT_API_KEY
-      const all = await env.LEADS_KV.list();
-      // Build the export and return JSON
+      const ids = JSON.parse(await env.LEADS.get("_meta:ids") || "[]");
+      // Fetch each lead, build the export, return JSON
     }
     return new Response("Not Found", { status: 404 });
   }
 }
 ```
 
-Deploy with `wrangler deploy`. Configure two secrets: `LOFTY_API_KEY` and `EXPORT_API_KEY`. Subscribe Lofty:
+The kit's full Worker source is at `workers/leads_index_worker.js`; the sketch above is for orientation only. To deploy, follow `workers_setup.md` Tier 4. To wire Lofty to it manually instead of via the walkthrough:
 
 ```python
 api.create_webhook(list_id=2, url="https://leads-index.<your-subdomain>.workers.dev/webhook/<secret>")
@@ -316,12 +318,12 @@ These are the optional automations. Each is a small JavaScript file. Deploy via 
 
 | Worker | Purpose | Deploy method | Cost |
 |---|---|---|---|
-| `leads-index` | Live leads index, fed by webhook list 2 | Dashboard or wrangler | Free |
-| `short-links` | Branded short-link redirector | Dashboard or wrangler | Free |
-| `jotform-to-lofty` | Bridge from Jotform feedback → Lofty note + email + D1 | Wrangler | Free (D1 free tier is generous) |
-| `showing-sms` | 2-hour pre-showing SMS using Durable Object alarms | Wrangler ONLY (uses DOs) | $5/month (Workers Paid) |
+| `jotform-to-lofty` | Bridge from Jotform feedback → Lofty note + email + D1 | Kit: `workers_setup.md` Tier 2 (wrangler) | Free (D1 free tier is generous) |
+| `showing-sms` | Pre-showing SMS using Durable Object alarms | Kit: `workers_setup.md` Tier 3 (wrangler ONLY; uses DOs) | $5/month (Workers Paid) |
+| `leads-index` | Live leads index, fed by webhook list 2 | Kit: `workers_setup.md` Tier 4 (wrangler) | Free |
+| `short-links` | Branded short-link redirector | Roll your own; candidate-for-cut from the roadmap | Free |
 
-`showing-sms` is the only one that requires the paid plan. The other three run on free tier indefinitely for typical real estate volume.
+`showing-sms` is the only one that requires the paid plan. The other three run on the free tier indefinitely for typical real estate volume.
 
 For each Worker, the user needs:
 - A Cloudflare account

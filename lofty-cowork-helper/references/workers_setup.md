@@ -499,6 +499,245 @@ Then remove the KV namespace from the dashboard (Workers & Pages → KV → SHOW
 
 ---
 
+# Tier 4 setup: leads-index Worker (free tier, opt-in)
+
+Tier 4 deploys a third Cloudflare Worker (`leads-index`) that keeps a live mirror of your Lofty leads inside Cloudflare KV. Lofty pushes lead create/update/delete events via webhook list 2; the Python client (`lofty_api.py`) reads from the KV mirror when `LOFTY_LEADS_INDEX_SOURCE=worker` is set. Result: `find_client` and `get_recent_visits_from_index` stay fast and accurate even for large CRMs.
+
+This section is parallel to the Tier 3 section above. Tier 4 runs on the Cloudflare **free** plan. No Workers Paid required.
+
+## When you need Tier 4
+
+If your CRM has more than a few thousand leads, OR you regularly hit `find_client` for clients who are not in the 25 most-recently-created list, Tier 4 is worth deploying. The default file fallback (`data/leads_index.json` built by `scripts/refresh_leads_index.py`) is fine for small CRMs, but it only refreshes when you run that script. Tier 4 upgrades that to a live, webhook-fed mirror that updates within 1-5 minutes of any change in Lofty, with no polling.
+
+If your CRM is small (a few hundred leads) and `find_client` always works for you, you can skip Tier 4 entirely. The kit works fine without it.
+
+## What changed in v1.9
+
+- New Worker `leads-index` ported from a battle-tested production implementation.
+- New wrangler config at `workers/wrangler.leads-index.toml` with `workers_dev=true`, `preview_urls=false`. No Durable Objects; this Worker runs on the free tier.
+- New unit test at `scripts/test_leads_index_worker.mjs` covering Bearer auth, lead/event extraction across webhook payload shapes, lead normalization, content-diff field comparison, array equality, and the safety-rule defaults. 67 assertions, runs in plain Node.
+- Three Cloudflare-side secrets: `LOFTY_API_KEY` (same value Tier 2 and Tier 3 use), `WEBHOOK_SECRET` (random; the path segment on `/webhook/<secret>`), `EXPORT_API_KEY` (random; the Bearer token `lofty_api.py` uses to read `/export`).
+- Write-side cost controls baked into the Worker: content-diff check (skip the KV write if no find_client-relevant field changed), stage exclusion (DNC / Archived / Agents / Vendors are never stored), `last_seen_at` timestamps, and skip metrics surfaced on `/stats`.
+
+## What you get
+
+- Real-time KV mirror of your Lofty leads with 1-5 minute write latency. No polling.
+- `find_client` reads from KV (via `lofty_api.py` when `LOFTY_LEADS_INDEX_SOURCE=worker` is set) instead of falling back to the local file.
+- Skip metrics on `/stats`: `skippedNoChange` (no-op updates), `skippedStageExcluded` (DNC / Archived / Agents-Vendors filtered at write time), `deletedViaStage` (leads moved into an excluded stage and dropped from KV), plus `eventCount`, `bootstrapCount`, and timestamps.
+- Resource budget: ~1 KB per lead in KV, so 10,000 leads is ~10 MB (1% of the free 1 GB cap). Typical webhook traffic for an active agent is 50-200 events/day, well under the 1,000 KV writes/day free cap. Read traffic from `find_client` is cached client-side in `lofty_api.py`.
+
+## Tier 4 prereqs
+
+Same as Tier 2 prereqs, plus three additions:
+
+1. **Tier 2 deployed first.** Tier 4 reuses the same `LOFTY_API_KEY` secret already on your Cloudflare account. If Tier 2 is not yet deployed, run that first. (Tier 3 is NOT a prereq; Tier 4 can run on a free Cloudflare account that skipped Tier 3.)
+2. **Lofty plan with webhook access.** Lofty webhook list 2 (Lead Info: create / update / delete) is what feeds the Worker. Confirm under Settings → API → Webhooks in Lofty.
+3. **A working `scripts/refresh_leads_index.py`.** The initial bootstrap step pushes your current leads to the Worker via `/bulk-import`. Run `python3 scripts/refresh_leads_index.py` once before Tier 4 setup to confirm it builds `data/leads_index.json` cleanly.
+
+## Tier 4 test pyramid (the three layers)
+
+Tier 4 ships with a three-layer test approach so you can validate the Worker before pointing live webhooks at it.
+
+**Layer 1: unit tests.** `node scripts/test_leads_index_worker.mjs` runs 67 assertions against the deterministic helpers (auth, lead/event extraction, normalization, content diff, array equality, exclusion-set sanity). Runs in plain Node, no Cloudflare account involved, zero dollars. Run this on every code change. Catches the bulk of port-induced bugs.
+
+**Layer 2: deploy to a staging Worker name.** Change `name = "leads-index"` to `name = "leads-index-staging"` in `wrangler.leads-index.toml`, deploy against a separate `LEADS_INDEX_STAGING` KV namespace, hit each HTTP route with curl (`/`, `/stats`, `/webhook/<secret>`, `/export`, `/lead/<id>`, `/bulk-import`), then `npx wrangler delete --name leads-index-staging` to tear it down. Your production `leads-index` Worker (if you ran a prior version) is untouched. Free tier, no extra cost.
+
+**Layer 3: real Lofty webhook list 2.** Wire your actual Lofty webhook to the staging Worker URL, edit one real lead in the Lofty UI (change a tag or stage), confirm the KV row updates within 1-5 minutes, and confirm `api.find_client` with `LOFTY_LEADS_INDEX_SOURCE=worker` sees the change. Then unwire the webhook, tear down the staging Worker, and rewire to your production Worker.
+
+## Easy Mode walkthrough (Tier 4)
+
+This walkthrough is what Claude follows for you. Each step is a single chat exchange. Stop the moment something errors and read the "Common errors" section below.
+
+**Step 0: Open a terminal window.** A couple of these steps need a terminal (the black or white window with a cursor where you type commands). If you have never used one, here is how to find yours.
+
+- **macOS:** Press and hold the Command key, tap the Space bar to open Spotlight, type "Terminal," and press Enter. A small window with a blinking cursor appears. Leave it open; you will paste commands into it.
+- **Windows:** Click the Start button, type "PowerShell," and press Enter. A blue or black window with a blinking cursor appears.
+
+You only need one terminal window open at a time. When Claude tells you to "run" a command, it means: click into that window, paste the command Claude just gave you, and press Enter.
+
+1. **Confirm Tier 2 is deployed.** Claude calls the Cloudflare MCP to verify the `jotform-to-lofty` Worker exists. If not, Claude pauses and routes you to the Tier 2 setup section above.
+2. **Create the KV namespace.** Claude runs `npx wrangler kv namespace create LEADS_INDEX -c wrangler.leads-index.toml` and pastes the returned id into the `[[kv_namespaces]]` block.
+3. **Push the three secrets.** Claude pushes `LOFTY_API_KEY` (reusing the value from your `.env`), generates random values for `WEBHOOK_SECRET` and `EXPORT_API_KEY` with `openssl rand -hex 32`, pushes both as secrets, and stores the generated values back into your `.env` so the Python client can read them.
+4. **Deploy.** `npx wrangler deploy -c wrangler.leads-index.toml`.
+5. **Health check.** `curl https://leads-index.<your-subdomain>.workers.dev/` should return `{"status":"ok","service":"leads-index","host":"..."}`. Fresh subdomains take 5-15 minutes for the SSL certificate to propagate; curl returns exit code 35 during that window.
+6. **Bootstrap the index.** Claude runs `python3 scripts/refresh_leads_index.py --push-to-worker` to do the initial one-time `/bulk-import` of every lead from your current `data/leads_index.json`. The response tells you how many leads were imported and how many were skipped via stage exclusion.
+7. **Wire Lofty webhook list 2.** Claude runs `python3 scripts/lofty_api.py webhook-create 2 https://leads-index.<your-subdomain>.workers.dev/webhook/<WEBHOOK_SECRET>` to register your Worker URL with Lofty. From this point forward, every lead create / update / delete in Lofty fires a webhook into the Worker.
+8. **Wire `.env`.** Claude appends `LOFTY_LEADS_INDEX_SOURCE=worker` and `LEADS_INDEX_WORKER_URL=https://leads-index.<your-subdomain>.workers.dev` to your `.env`. From now on, `find_client` and `get_recent_visits_from_index` read from the live KV index.
+9. **Done.** Tier 4 is live. Any new lead in Lofty appears in `find_client` within 1-5 minutes without a manual refresh.
+
+## Power User Mode walkthrough (Tier 4)
+
+Same 9 steps as Easy Mode, but you drive.
+
+### 0. Open a terminal
+
+If you do not already have one open: macOS users press Cmd+Space, type "Terminal," and press Enter. Windows users open PowerShell from the Start menu. Every shell snippet below runs in that window.
+
+### 1. Confirm Tier 2 is deployed
+
+Tier 4 reuses your Tier 2 `LOFTY_API_KEY` and assumes you have a working `.env`. From the repo root:
+
+```
+ls lofty-cowork-helper/workers/wrangler.jotform.toml
+grep -q LOFTY_API_KEY .env && echo "OK: LOFTY_API_KEY in .env"
+```
+
+If either fails, go finish Tier 2 first.
+
+### 2. Create the KV namespace
+
+From `lofty-cowork-helper/workers/`:
+
+```
+npx wrangler kv namespace create LEADS_INDEX -c wrangler.leads-index.toml
+```
+
+Copy the returned `id` into the `[[kv_namespaces]]` block of `wrangler.leads-index.toml`, replacing `REPLACE_WITH_YOUR_LEADS_INDEX_KV_ID`.
+
+### 3. Push the three secrets
+
+```
+# Reuse the same Lofty API key Tier 2 and Tier 3 use.
+echo "$LOFTY_API_KEY" | npx wrangler secret put LOFTY_API_KEY -c wrangler.leads-index.toml
+
+# Generate a random WEBHOOK_SECRET. This becomes the path segment on
+# /webhook/<secret>; it filters out random POSTs from anyone who finds
+# your Worker URL.
+WEBHOOK_SECRET=$(openssl rand -hex 32)
+echo "$WEBHOOK_SECRET" | npx wrangler secret put WEBHOOK_SECRET -c wrangler.leads-index.toml
+
+# Generate a random EXPORT_API_KEY. This is the Bearer token your Python
+# client uses to call /export, /lead/<id>, /bulk-import.
+EXPORT_API_KEY=$(openssl rand -hex 32)
+echo "$EXPORT_API_KEY" | npx wrangler secret put EXPORT_API_KEY -c wrangler.leads-index.toml
+```
+
+Save `WEBHOOK_SECRET` and `EXPORT_API_KEY` somewhere you can retrieve them. You will need both in step 7 (webhook wiring) and step 8 (`.env` write).
+
+Wrangler will prompt you to create the Worker on the first `secret put` if it does not exist. Confirm.
+
+### 4. Deploy
+
+```
+npx wrangler deploy -c wrangler.leads-index.toml
+```
+
+The Worker comes up at `https://leads-index.<your-subdomain>.workers.dev`.
+
+### 5. Health check
+
+```
+curl https://leads-index.<your-subdomain>.workers.dev/
+```
+
+Expected:
+
+```json
+{
+  "status": "ok",
+  "service": "leads-index",
+  "host": "leads-index.<your-subdomain>.workers.dev"
+}
+```
+
+If curl returns exit code 35, the SSL certificate is still propagating. Wait 5-15 minutes and retry.
+
+Verify Bearer auth on `/export`:
+
+```
+curl -H "Authorization: Bearer $EXPORT_API_KEY" \
+  https://leads-index.<your-subdomain>.workers.dev/export | head -20
+```
+
+Expected: a JSON document with `count: 0, leads: []` (the KV index is empty until step 6).
+
+### 6. Bootstrap the index
+
+Push your current local index up to the Worker so `find_client` has something to read on day one:
+
+```
+python3 scripts/refresh_leads_index.py --push-to-worker
+```
+
+The flag tells `refresh_leads_index.py` to POST the resulting payload to `<LEADS_INDEX_WORKER_URL>/bulk-import` with the Bearer token. You should see something like:
+
+```
+imported: 612, skipped_stage: 38
+```
+
+`skipped_stage` is the count of leads excluded by the safety-rule defaults (DNC / Archived / Agents-Vendors). Those leads stay in Lofty; they just do not consume your KV storage.
+
+### 7. Wire Lofty webhook list 2
+
+```
+python3 scripts/lofty_api.py webhook-create 2 \
+  https://leads-index.<your-subdomain>.workers.dev/webhook/$WEBHOOK_SECRET
+```
+
+This registers your Worker URL with Lofty's webhook list 2. From this point on, every lead create / update / delete fires a POST into the Worker.
+
+Confirm the registration:
+
+```
+python3 scripts/lofty_api.py webhooks
+```
+
+Look for a list-2 entry pointing at your Worker URL.
+
+### 8. Wire `.env`
+
+Append to `.env` at the repo root:
+
+```
+LOFTY_LEADS_INDEX_SOURCE=worker
+LEADS_INDEX_WORKER_URL=https://leads-index.<your-subdomain>.workers.dev
+LEADS_INDEX_EXPORT_API_KEY=<the EXPORT_API_KEY you generated in step 3>
+```
+
+`lofty_api.py`'s `find_client` and `get_recent_visits_from_index` read these vars. If `LOFTY_LEADS_INDEX_SOURCE` is anything other than `worker`, the Python client falls back to the local file (the v1.4.1 behavior).
+
+### 9. Done
+
+Tier 4 is live. Edit any lead in Lofty (change a tag, update a phone), then within 1-5 minutes:
+
+```
+curl https://leads-index.<your-subdomain>.workers.dev/stats
+```
+
+`eventCount` should have ticked up. If `skippedNoChange` ticked up instead, the diff check decided your edit did not touch a find_client-relevant field; that is correct behavior.
+
+## Verify and troubleshoot (Tier 4)
+
+### Common errors (Tier 4 specific)
+
+- **`unauthorized` on `/export` or `/bulk-import`.** Your Bearer header is missing, malformed, or does not match the `EXPORT_API_KEY` you pushed in step 3. The header must be exactly `Authorization: Bearer <value>`. The Worker also rejects the `token <value>` scheme; only `Bearer` works on this Worker (Lofty's own API uses `token`, but this Worker is independent).
+- **`forbidden` on `/webhook/<secret>`.** The secret in the URL path does not match the `WEBHOOK_SECRET` you pushed. If you rotated the secret, also update the webhook registration in Lofty (delete the old list-2 entry and re-register with the new URL).
+- **`eventCount` is not ticking up after lead edits.** Check the Worker tail log: `npx wrangler tail leads-index -c wrangler.leads-index.toml`. The most common cause is the webhook is not registered in Lofty (re-run step 7) or the registered URL has a typo in the secret path (recreate with the right value).
+- **KV is at 1,000 writes/day and starting to throttle.** Look at `/stats` for the ratio of `eventCount` to `skippedNoChange`. If the ratio is high (most events being skipped), your webhook stream is noisy. If `skippedNoChange` is low, real edits are happening and you may need to either edit `DIFF_FIELDS` in `leads_index_worker.js` to filter more aggressively, or accept that your workload exceeds the free tier and upgrade to Workers Paid.
+- **`find_client` still reading from the local file even after `LOFTY_LEADS_INDEX_SOURCE=worker` is set.** Reload your shell or your editor so the new env var is picked up. Confirm with `python3 -c "import os; print(os.environ.get('LOFTY_LEADS_INDEX_SOURCE'))"`.
+- **Stage-excluded lead is still showing up in `find_client`.** The stage exclusion runs at write time on the Worker. If a lead was excluded at bootstrap time it is not in KV; if its stage later changed to an excluded stage, the next webhook event drops it. If it is still appearing, run `python3 scripts/refresh_leads_index.py --push-to-worker` to force a fresh bootstrap.
+
+### Roll back
+
+Same shape as the Tier 2 and Tier 3 roll-backs. From `workers/`:
+
+```
+npx wrangler delete -c wrangler.leads-index.toml --name leads-index
+```
+
+Then remove the KV namespace from the dashboard (Workers & Pages → KV → LEADS_INDEX → Delete). The `LOFTY_API_KEY` secret can stay; the Tier 2 and Tier 3 Workers still use it.
+
+Set `LOFTY_LEADS_INDEX_SOURCE=file` (or unset it) in your `.env` so `lofty_api.py` reverts to the local file fallback.
+
+Finally, unwire the Lofty webhook so events do not pile up against a deleted Worker:
+
+```
+python3 scripts/lofty_api.py webhooks
+python3 scripts/lofty_api.py webhook-delete <webhook-id>
+```
+
+---
+
 ## What comes next
 
 Tier 2 unlocks:
@@ -513,4 +752,10 @@ Tier 3 unlocks:
 - `api.list_pending_showings(lead_id)` and `api.cancel_showing(lead_id, full_address)` for queue management.
 - The full per-showing audit trail in `SHOWING_SMS_QUEUE` KV with 30-day retention.
 
-Tier 3 polish (the leads-index and short-links Workers) is opt-in and ships in v1.7.x or later.
+Tier 4 unlocks:
+
+- `find_client` and `get_recent_visits_from_index` read from a live, webhook-fed KV mirror instead of the local file fallback.
+- 1-5 minute write latency on lead changes in Lofty, with no polling.
+- Skip metrics on `/stats` so you can see how noisy your webhook stream is and whether the content-diff check is doing its job.
+
+The short-links Worker is the remaining opt-in Worker on the roadmap. It is candidate-for-cut; whether it ships in a future v1.9.x is a decision deferred until after Tier 4 sees real-user usage.
