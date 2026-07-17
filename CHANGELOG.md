@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [1.10.1] - 2026-06-23
+
+Packaging fix so the kit builds and uploads as a single `.skill` again. No behavior change for the user; the showing workflow is unchanged, it just lives in a new file.
+
+### Changed
+- Moved the showing-orchestration sub-skill from `skills/schedule-showing/SKILL.md` to `references/schedule-showing.md`. The `.skill` upload format and the Skills API allow exactly one `SKILL.md` per package, so the nested sub-skill blocked packaging. The main skill already carries the showing trigger phrases, so it activates and then reads this reference. Updated the two pointers in `SKILL.md` plus the lead-in pointers in `references/workflows.md` and `references/extending.md`.
+- Condensed the `SKILL.md` frontmatter `description` from 1448 to under 1024 characters (the API limit) and removed an unquoted colon that broke YAML parsing. Same trigger coverage, fewer redundant example phrases.
+
+### Packaging
+- Repackaged `lofty-cowork-helper.skill` (the prior shared build was from 2026-05-10 and predated the v1.8.0 through v1.10.0 work). The runtime `data/.kit-history.jsonl` health-check log is excluded from the package.
+
+---
+
 ## [1.10.0] - 2026-05-12
 
 Hands-off leads index for non-tech users, plus safer tag operations and a kit health check. The Tier 1 leads index now stays current without an agent ever opening a terminal: a daily incremental and a weekly resumable full reconciliation run on Cowork scheduled tasks.
